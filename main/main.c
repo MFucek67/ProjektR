@@ -16,7 +16,6 @@ static QueueHandle_t event_queue;
 static QueueHandle_t frames_queue;
 TickType_t last_frame_time;
 
-
 static void check_mmwave(void *args) 
 {
     for(;;) {
