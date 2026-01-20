@@ -1,0 +1,1 @@
+//samo da ESP-IDF registrira board komponentu
