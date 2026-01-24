@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
-#include "../include/platform/platform_queue.h"
+#include "platform/platform_queue.h"
 
 QueueHandle_t platform_queue_create(size_t queue_length, size_t element_size)
 {

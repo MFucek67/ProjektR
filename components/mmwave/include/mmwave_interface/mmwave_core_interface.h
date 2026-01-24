@@ -1,44 +1,176 @@
+/**
+ * @file mmwave_core_interface.h
+ * @author Marko Fuček
+ * @brief Javni API i sučelje mmWave core sloja
+ * 
+ * U ovom file-u su definirane podatkovne strukture za mmWave frame-ove,
+ * callback sučelje prema HAL sloju i callback sučelje za funkcijski API
+ * mmWave core sloj.
+ * 
+ * mmWave core sloj ne upravlja taskovima, UART-om niti memorijom, ne poznaje
+ * detalje HAL-a i implementacije platforme, već samo koristi HAL preko callbackova.
+ * 
+ * HAL sloj je zadužen za kontrolu nad memorijom. HAL sloj implementira funkcije koje
+ * mmWave core poziva preko callbacka, te on jedini smije pozivati mmWave core API.
+ * 
+ * @note Ovim header file-om definira se granica između HAL i mmWave core sloja.
+ * 
+ * @version 0.1
+ * @date 2026-01-22
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
+
 #pragma once
 #include "stdio.h"
 #include "stdint.h"
 #include "stdbool.h"
 #include "mmwave.h"
 
+/**
+ * @struct mmWaveFrame
+ * @brief Struktura koja predstavlja cijeli mmWave frame.
+ * 
+ * Koristi se kod TX taska.
+ * 
+ */
 typedef struct {
-    uint8_t* frame;
-    size_t frame_len;
-} mmWaveFrame; //struktura za cijeli frame (kod TX taska)
+    uint8_t* frame; /**< Pokazivač na cijeli frame */
+    size_t frame_len; /**< Duljina frame-a u bajtovima */
+} mmWaveFrame;
 
+/**
+ * @struct mmWaveFrameData
+ * @brief Struktura koja se sastoji od samo semantički korisnih podataka frame-a.
+ * 
+ * Semantički korisni podatci su oni koje aplication sloj koristi:
+ * -data[0] = control word
+ * -data[1] = command word
+ * -data[2, ...] = payload
+ * -data_len = payload_len + 2
+ * 
+ */
 typedef struct
 {
-    //data -> data[0] = ctrl_w, data[1] = cmd_w, ostalo je payload
-    //data_len = payload_len + 2
-    uint8_t* data;
-    size_t data_len;
-} mmWaveFrameData; //struktura samo semantički korisnih podataka
+    uint8_t* data; /**< Pokazivač na semantički korisne podatke frame-a */
+    size_t data_len; /**< Duljina semantički korisnih podataka (ctrl_w + cmd_w + payload) */
+} mmWaveFrameData;
 
 
-//callbackovi koji se definiraju u HAL-u:
-typedef bool (*mmWave_saveFrame)(const mmWaveFrameData* frame_data); //callback preko kojeg mmwave šalje frame u frame_queue preko HAL-a
-typedef uint8_t* (*mmWave_alloc_memory)(size_t byte_size); //za heap alokaciju memorije za frame
-typedef void (*mmWave_free_alloc_memory)(uint8_t* mem, size_t mem_size); //callback za free memorije preko HAL-a
+/**
+ * @brief Callback za spremanje semantički korisnih podataka iz parsiranog frame-a.
+ * 
+ * Funkcija koju mmWave core preko pokazivača poziva kad pronađe ispravan frame.
+ * Funkciju implementira HAL sloj.
+ * 
+ * HAL sloj nakon poziva ove funkcije preuzima vlasništvo nad memorijom frame-a.
+ * 
+ * @param frame_data Pokazivač na strukturu sa semantički korisnim podacima iz parsiranog frame-a
+ * @return true ako su podatci uspješno spremljeni
+ * @return false ako podatci nisu uspješno spremljeni
+ * 
+ */
+typedef bool (*mmWave_saveFrame)(const mmWaveFrameData* frame_data);
 
-//OD OVIH funkcija su callbackovi samo definirani tu, jer tu i pripadaju (to je public API core-a), ali preko strukture se šalju HAL-u na uporabu
-//biti će pridruženi funkcijama u mmwave_core.c kad se te funkcije definiraju i implementiraju
-//Dakle, ove tri zločke su samo obične API funkcije definirane ovako, samo kao pokazivači
-/*Kad ih implementiram, napravit ću dodatnu funkciju koja će napraviti strukturu s pokazivačima na njih i te
-pokazivače spojiti s konkretnim adresama implementiranih funkcija.
+/**
+ * @brief Callback za alokaciju memorije.
+ * 
+ * mmWave core koristi ovaj callback za alokaciju memorije bez da zna stvarni mehanizam heap-a
+ * i način dodjele.
+ * Funkciju implementira HAL sloj.
+ * 
+ * @param byte_size Broj bajtova za alokaciju
+ * @return Pokazivač na alociranu memoriju ili NULL u slučaju neuspjeha
+ * 
+ */
+typedef uint8_t* (*mmWave_alloc_memory)(size_t byte_size);
 
-Ovako je bolje jer HAL koristi mmwave_core samo kao uslugu -> evo ti ovo, obavi ovo! Ne zna ništa kako je to implementirano.*/
-typedef mmwave_frame_status_t (*mmWave_parse_data)(const uint8_t* data, size_t data_len); //za parsiranje
-//za izgradnju frame-a:
+/**
+ * @brief Callback za oslobađanje memorije.
+ * 
+ * mmWave core poziva ovu funkviju preko pokazivača kada treba osloboditi alociranu memoriju.
+ * Funkciju implementira HAL sloj.
+ * 
+ * @param mem Pokazivač na memoriju koja se treba osloboditi
+ * @param mem_size Veličina memorije koja se oslobađa u bajtovima
+ * 
+ */
+typedef void (*mmWave_free_alloc_memory)(uint8_t* mem, size_t mem_size);
+
+/**
+ * @brief Public API callback mmWave core sloja za parsiranje ulaznih podataka.
+ * 
+ * Funkcija analizira ulazne bajtove i inerno gradi frame.
+ * Kada se frame prepozna, iz nje se poziva mmWave_saveFrame callback.
+ * 
+ * Funkciju implementira mmWave core sloj.
+ * 
+ * @param data Pokazivač na ulazne podatke
+ * @param data_len Duljina ulaznih podataka u bajtovima
+ * @return Status parsiranja
+ * 
+ */
+typedef mmwave_frame_status_t (*mmWave_parse_data)(const uint8_t* data, size_t data_len);
+
+/**
+ * @brief Public API callback mmWave core sloja za izgradnju frame-a koji se šalje na TX.
+ * 
+ * Funkcija iz ulaznih podataka stvara konkretan frame, dodajući headere, footere i
+ * checksum (poznati samo mmWave core sloju).
+ * 
+ * Funkciju implementira mmWave core sloj.
+ * 
+ * @param payload Pokazivač na payload podatke
+ * @param payload_len Duljina payload podataka u bajtovima
+ * @param ctrl_w Control word
+ * @param cmd_w Command word
+ * @return Pokazivač na strukturu kreiranog frame-a ili NULL
+ * 
+ */
 typedef mmWaveFrame* (*mmWave_build_frame)(const uint8_t* payload, size_t payload_len, const uint8_t ctrl_w, const uint8_t cmd_w);
-typedef mmwave_status_t (*mmWave_init)(void); //za restart parsera kod ponovnog startanja
+
+/**
+ * @brief Public API callback mmWave core sloja za inicijalizaciju core sloja prije startanja.
+ * 
+ * Funkcija restarta parser i postavlja na početnu vrijednost interne varijable koje parser koristi.
+ * 
+ * Funkciju implementira mmWave core sloj. 
+ * 
+ * @return Status operacije nad core parserom
+ * 
+ */
+typedef mmwave_status_t (*mmWave_init)(void);
+
+/**
+ * @brief Public API callback mmWave core sloja za zaustavljanje rada core sloja.
+ * 
+ * Funkcija trenutno zaustavlja rad parsera. Čisti memoriju koja je bila zauzeta u trenutku prekida
+ * i vraća sve interne varijable na neinicijalizirano stanje.
+ * 
+ * Funkciju implementira mmWave core sloj.
+ * 
+ * @return Status operacije nad core parserom
+ * 
+ */
 typedef mmwave_status_t (*mmWave_stop)(void);
 
-//za prosljeđivanje strukture u kojoj su pokazivači na funkcije povezani s pravim HAL funkcijama iz HAL sloja u mmwave_core sloj
+/**
+ * @brief Povezuje HAL funkcije s callbackovima koje mmWave core poziva.
+ * 
+ * Poziva HAL sloj kod inicijalizacije kako bi mmWave core sloju pružio prave pokazivače na funkcije.
+ * 
+ * @param cb Struktura s callbackovima za HAL sloj
+ */
 void mmwave_core_bind_callbacks(const mmWave_core_callback* cb);
 
+/**
+ * @struct mmWave_core_interface
+ * @brief Struktura koja sadrži API funkcije mmWave core sloja u obliku callbackova.
+ * 
+ * HAL sloj koristi ovu strukturu za pozivanje funkcija mmWave core sloja.
+ * 
+ */
 typedef struct
 {
     mmWave_parse_data mmwave_parse_data;
@@ -47,6 +179,15 @@ typedef struct
     mmWave_stop mmwave_stop;
 } mmWave_core_interface;
 
+/**
+ * @struct mmWave_core_callback
+ * @brief Strukutra callbackova koje implementira HAL sloj.
+ * 
+ * Ovu strukutru HAL sloj prosljeđuje mmWave core sloju, te on "binda" tj. povezuje
+ * svoje implementacije na callbackove, kako bi core sloj mogao pozivati njegove funkcije
+ * bez znanja njihovih implementacija.
+ * 
+ */
 typedef struct
 {
     mmWave_saveFrame mmwave_save_frame;

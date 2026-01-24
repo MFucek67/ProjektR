@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "../../include/platform/platform_task.h"
+#include "platform/platform_task.h"
 
 task_handler platform_create_task(TaskConfig_t* taskConfig)
 {

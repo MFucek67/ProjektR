@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
-#include "../include/platform/platform_memory.h"
+#include "platform/platform_memory.h"
 
 void* platform_malloc(void** mem_location, uint32_t size)
 {
@@ -12,7 +12,7 @@ void* platform_malloc(void** mem_location, uint32_t size)
     if(allocated_memory == NULL) {
         return MEM_ERROR;
     } else {
-        mem_location = &allocated_memory;
+        *mem_location = allocated_memory;
         return MEM_OK;
     }
 }

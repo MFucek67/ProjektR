@@ -1,7 +1,27 @@
+/**
+ * @file mmwave_core_seeed_studio.c
+ * @author Marko Fuček
+ * @brief Implementacija core sloja za parsiranje i izgradnju mmWave frameova.
+ * 
+ * Ovaj modul implementira mehanizme za parsiranje dolaznih bajtova i izgradnju mmWave frame-ova
+ * koji se koriste za upite na senzor. Modul je potpuno platform-independent i njegov pristup hardware-u
+ * je isključivo preko HAL sloja. Stoga se za funkcionalnosti spremanja u queue te alokacije i oslobađanja
+ * memorije koristi HAL-ovim callbackovima.
+ * 
+ * @note Modul nije thread-safe.
+ * @note Vlasništvo nad parsiranim frame-ovima se pozivom callbacka prenosi HAL sloju.
+ * 
+ * @version 0.1
+ * @date 2026-01-22
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
+
 #include <stdio.h>
 #include <string.h>
-#include "./include/mmwave_interface/mmwave.h"
-#include "./include/mmwave_interface/mmwave_core_interface.h"
+#include "mmwave_interface/mmwave.h"
+#include "mmwave_interface/mmwave_core_interface.h"
 
 static mmWave_core_callback* hal_functions;
 
@@ -24,6 +44,21 @@ void mmwave_core_bind_callbacks(const mmWave_core_callback* cb)
     hal_functions = cb;
 }
 
+/**
+ * @brief Pomoćna funkcija za proširenje internog buffera za izgradnju frame-a.
+ * 
+ * Pošto veličina payloada ne mora biti ista, ne možemo predvidjeti veličinu buffera za parsiranje.
+ * Funkcija se poziva kada treba alocirati veći buffer za izgradnju frame-a.
+ * 
+ * Alocira novi buffer zadane veličine, kopira već izgrađeni dio frame-a i
+ * oslobađa memoriju starog buffera.
+ * 
+ * @param size Nova veličina buffera u bajtovima
+ * @return Pokazivač na novi buffer ili NULL
+ * 
+ * @note Maksimalna veličina buffera ograničena je s MAX_PARSER_BUFFER_SIZE, no ona može biti
+ * nedostižna zbog maksimalne veličine alokacije zadane u HAL sloju.
+ */
 static uint8_t* extend_building_space(size_t size)
 {
     if(size <= MAX_PARSER_BUFFER_SIZE) {
@@ -40,6 +75,15 @@ static uint8_t* extend_building_space(size_t size)
     }
 }
 
+/**
+ * @brief Pomoćna funkcija koja resetira interno stanje parsera.
+ * 
+ * Briše sve varijable koje pamte trenutno stanje izgradnje okvira i postavlja ih na početne vrijedosti,
+ * čisti sve interne buffere i oslobađa memoriju. Ovisno o učestalosti velikih okvira (većih od početno
+ * zadane vrijednosti) veličinu buffera nekad ne resetira (kod "burstova" velikih okvira to štedi fragmentaciju
+ * memorije i procesorsko vrijeme).
+ * 
+ */
 static void restart_parser(void)
 {
     head1 = false;
@@ -48,9 +92,7 @@ static void restart_parser(void)
     fixed_elements = 0;
     payload_len = 0;
     
-    //okviri često dolaze u "burstovima" od više onih iste veličine
-    //bilo bi glupo stalno resetirati na početnu veličinu, ako ih dolazi više velikih
-    //zato imamo prag od 3 velika, ako ih dođe 3 ili više, ostavljamo veličinu na najvećoj prošloj
+    //imamo prag od 3 velika, ako ih dođe 3 ili više, ostavljamo veličinu na najvećoj prošloj
     //čim dođe prvi manji od trenutne veličine resetira se na početnu veličinu
     if(big_frames_count < 3) {
         if(building_buffer) {
@@ -80,6 +122,10 @@ mmwave_status_t mmwave_init(void)
 
 mmwave_status_t mmwave_stop(void)
 {
+    if(!hal_functions) {
+        return S_MMWAVE_ERR_TIMEOUT;
+    }
+    
     hal_functions->free_mem(building_buffer, parsing_buff_current_size);
     building_buffer = NULL;
     parsing_buff_current_size = 0;
@@ -96,7 +142,17 @@ mmwave_status_t mmwave_stop(void)
     return S_MMWAVE_OK;
 }
 
-//inner parsing funkcija -> prima buffer neobrađenih bajtova i duljinu bajtova u tom bufferu
+/**
+ * @brief Interna funkcija za parsiranje ulaznih podataka.
+ * 
+ * Analizira buffer primljenih bajtova i pokušava pronaći sastavne dijelove mmWave frame-a.
+ * Ako uspješno pronađe okvir, uzima samo semantički korisne podatke iz njega (ctrl_w, cmd_w,
+ * duljinu payloada i payload) te ih prosljeđuje HAL sloju preko callbacka.
+ * 
+ * @param parsing_buff Buffer sa sirovim bajtovima
+ * @param len Duljina poslanih bajtova
+ * @return Status parsiranja ulaznih podataka
+ */
 static mmwave_frame_status_t process_data(uint8_t* parsing_buff, size_t len)
 {
     mmwave_frame_status_t status_of_operation;
@@ -235,10 +291,15 @@ static mmwave_frame_status_t process_data(uint8_t* parsing_buff, size_t len)
     return status_of_operation;
 }
 
+/**
+ * @note Ulazni podatci se kopiraju u interni buffer, kako bi se izbjegla direktna manipulacija
+ * HAL bufferom.
+ */
 mmwave_frame_status_t mmwave_parse_data(const uint8_t* data, size_t data_len)
 {
-    //data buffer dolazi od HAL-a i pokazivač na njega ne smijemo proslijediti dalje jer ne smijemo mijenjati HAL buffere u ovom sloju
-    //kopirat ćemo ga u inner buffer
+    if(!hal_functions) {
+        return S_MMWAVE_ERR_TIMEOUT;
+    }
     if(data_len > data_saving_buff_size) {
         uint8_t* new_buff = hal_functions->alloc_mem(data_len);
         if(new_buff == NULL) {
@@ -255,6 +316,10 @@ mmwave_frame_status_t mmwave_parse_data(const uint8_t* data, size_t data_len)
 
 mmWaveFrame* mmwave_build_frame(const uint8_t* payload, size_t payload_len, const uint8_t ctrl_w, const uint8_t cmd_w)
 {
+    if(!hal_functions) {
+        return NULL;
+    }
+
     uint8_t* frame_data = hal_functions->alloc_mem(payload_len + 9);
     if(!frame_data) {
         return NULL;

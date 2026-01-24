@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
-#include "./../include/platform/platform_mutex.h"
+#include "platform/platform_mutex.h"
 
 MutexHandle_t platform_create_mutex(void)
 {

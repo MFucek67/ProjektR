@@ -1,3 +1,21 @@
+/**
+ * @file mmWave_manager.c
+ * @author Marko Fuček
+ * @brief Implementacija managera za upravljanje aplikacijskim slojem.
+ * 
+ * Ovaj modul implementira aplikacijski manager. Zadaća managera je povezivanje svih djelova aplikacijskog sloja,
+ * komunikacija s HAL-om, davanje callbackova decoderu i upravljanje internim stanjem sustava, kako bi se rasteretio
+ * vršni aplikacijski sloj koji nudi API prema vanjskim programima.
+ * 
+ * Modul je ovisan o platformi i koristi platform funkcije (platform-specific).
+ *  
+ * @version 0.1
+ * @date 2026-01-24
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
+
 #include <stdio.h>
 #include <stdint.h>
 #include "app/app_mmwave_manager.h"
@@ -7,20 +25,35 @@
 #include "HAL/hal_mmwave.h"
 #include "app/app_mmwave_hal_config.h"
 
-static AppSensorState current_state = APP_SENSOR_UNINIT; //za pamćenje stanja sustava
+static AppSensorState current_state = APP_SENSOR_UNINIT;
 static QueueHandle_t app_event_queue; //event queue za Response/Report
-static AppInquiryType pending_inquiry = NO_TYPE; //trenutno poslani inquiry (smije samo jedan prije dobivenog odgovora - čeka se neko vrijeme)
+static AppInquiryType pending_inquiry = NO_TYPE; //trenutno poslani inquiry
 static SensorOperationMode current_mode = SENSOR_MODE_STANDARD; //mode senzora
 static task_handler decoder_task_handler;
 static MMwaveEventCallback higher_app_callback;
 static bool end_flag = false;
 static bool task_ended = false;
 
+/**
+ * @brief Task za obradu (dekodiranje) primljenih parsiranih podataka.
+ * 
+ *  Uzima podatke iz HAL queue-a, preuzima ownership frame-a na aplikacijski sloj, dekodira podatke, te
+ *  nakon slanja reporta/requesta oslobađa memoriju koju je frame bio zauzimao.
+ * 
+ * @param arg Ne koristi se
+ */
 static void decoder_task(void* arg)
 {
     QueueElement_t buffer;
     while(true) {
-        hal_mmwave_get_frame_from_queue(&buffer, 10);
+        if(hal_mmwave_get_frame_from_queue(&buffer, 10) != HAL_MMWAVE_OK) {
+            if(end_flag) {
+                task_ended = true;
+                break;
+            }
+            continue;
+        }
+
         mmWaveFrameData frame = {
             .data = buffer.data,
             .data_len = buffer.len
@@ -30,10 +63,6 @@ static void decoder_task(void* arg)
         //tek sada kada smo uzeli podatke i protumačili frame
         //oslobađamo memoriju koju je mmwave_core zauzeo za spremanje frame-a
         hal_mmwave_release_frame_memory(&frame);
-        if(end_flag) {
-            task_ended = true;
-            break;
-        }
     }
 }
 
@@ -93,12 +122,11 @@ AppSensorStatus app_stop_sys(void)
         return APP_SENSOR_ERROR;
     }
 
-    app_mmwave_decoder_deinit();
     end_flag = true;
-
     while(!task_ended) {
         platform_delay_task(10);
     }
+    app_mmwave_decoder_deinit();
     platform_delete_task(decoder_task_handler);
     decoder_task_handler = NULL;
 
@@ -106,6 +134,7 @@ AppSensorStatus app_stop_sys(void)
     app_event_queue = NULL;
 
     current_state = APP_SENSOR_UNINIT;
+    return APP_SENSOR_OK;
 }
 
 SensorOperationMode app_get_mode(void)
@@ -133,7 +162,7 @@ void mmwave_register_event_callback(MMwaveEventCallback cb)
 bool app_get_event(MmwaveEvent* out_event, uint32_t timeout_ms)
 {
     QueueElement_t q_el;
-    if(platform_queue_get(app_event_queue, &q_el, 10) != QUEUE_OK) {
+    if(platform_queue_get(app_event_queue, &q_el, timeout_ms) != QUEUE_OK) {
         return false;
     }
 
@@ -160,7 +189,10 @@ void onResponse(DecodedResponse* response)
     };
 
     //šaljemo event u queue
-    platform_queue_send(app_event_queue, &q_el, 10);
+    if(platform_queue_send(app_event_queue, &q_el, 10) != QUEUE_OK) {
+        platform_free(ev);
+        return;
+    }
     //ako je callback zadan, šaljemo "notification" i preko njega
     if(higher_app_callback) {
         higher_app_callback(ev);
@@ -182,7 +214,10 @@ void onReport(DecodedReport* report)
     };
 
     //šaljemo event u queue
-    platform_queue_send(app_event_queue, &q_el, 10);
+    if(platform_queue_send(app_event_queue, &q_el, 10) != QUEUE_OK) {
+        platform_free(ev);
+        return;
+    }
     //ako je callback zadan, šaljemo "notification" i preko njega
     if(higher_app_callback) {
         higher_app_callback(ev);

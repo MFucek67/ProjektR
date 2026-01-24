@@ -1,3 +1,22 @@
+/**
+ * @file app_mmwave_decoder.c
+ * @author Marko Fuček
+ * @brief Implementacija aplikacijskog dekodera mmWave poruka.
+ * 
+ * Ovaj modul implementira aplikacijski dekoder mmWave poruka (semantički korisnih podataka).
+ * Prima već prevedene i izdvojene podatke, te ih tumači i prevodi u aplikacijske strukture
+ * reportove i responsove.
+ * 
+ * Modul je potpuno neovisan o platformi i ne poznaje detalje komunikacijskog protokola.
+ * Komunikacija s ostatkom aplikacijskg sloja obavlja se isključivo preko callbackova.
+ * 
+ * @version 0.1
+ * @date 2026-01-23
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
+
 #include <stdio.h>
 #include "app/app_mmwave_constants.h"
 #include "app/app_mmwave_decoder.h"
@@ -5,8 +24,15 @@
 static AppDecoderContext* context = NULL;
 static bool initialized = false;
 
-//funkcija za restart svih postavki reporta na početne
-//koristi se između reportova
+/**
+ * @brief Pomoćna funkcija koja resetira sadržaj dekodiranog reporta.
+ * 
+ * Postavlja sve zastavice reporta na false.
+ * Koristi se prije obrade nove poruke kako bi se osiguralo čisto početno
+ * stanje report strukture.
+ * 
+ * @param dr Pokazivač na strukturu reporta
+ */
 static void decoded_report_reset(DecodedReport* dr)
 {
     dr->has_init_completed_info = false;
@@ -17,8 +43,15 @@ static void decoded_report_reset(DecodedReport* dr)
     dr->has_uof_report = false;
 }
 
-//funkcija za restart svih postavki odgovora na početne
-//koristi se između reportova
+/**
+ * @brief Pomoćna funkcija koja resetira sadržaj dekodiranog responsa.
+ * 
+ * Briše tip responsa i pripadajuće podatke.
+ * Koristi se prije obrade nove poruke kako bi se osiguralo čisto početno
+ * stanje response strukture.
+ * 
+ * @param dr Pokazivač na strukturu response-a
+ */
 static void decoded_response_reset(DecodedResponse* dr)
 {
     dr->data = NULL;
@@ -31,17 +64,28 @@ void app_mmwave_decoder_init(AppDecoderContext* ctx)
     context = ctx;
     initialized = true;
 }
+
 void app_mmwave_decoder_deinit(void)
 {
     context = NULL;
     initialized = false;
 }
+
+/**
+ * @note (data[0] = ctrl_w, data[1] = cmd_w, data[2, ...] = payload)
+ * 
+ * @note Ako dekoder nije inicijaliziran ili su ulazni parametri neispravni,
+ * funkcija se prekida bez obrade.
+ */
 void app_mmwave_decoder_process_frame(uint8_t* data, size_t data_len)
 {
     if(!initialized) {
         return;
     }
     if(!data) {
+        return;
+    }
+    if(data_len < 2) {
         return;
     }
 
@@ -246,157 +290,241 @@ void app_mmwave_decoder_process_frame(uint8_t* data, size_t data_len)
     //Implementirat ću samo najbitnije responsove (za funkcije koje se navjviše koriste) - ostali ili kasnije ili nisu potrebni
     if(ctrl_w == HEARTBEAT_CTRL && cmd_w == HEARTBEAT_CMD && payload_len == HEARTBEAT_LEN) {
         response.type = HEARTBEAT;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == MODULE_RESET_CTRL && cmd_w == MODULE_RESET_CMD && payload_len == MODULE_RESET_LEN) {
         response.type = MODULE_RESET;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == PR_MODEL_CTRL && cmd_w == PR_MODEL_CMD && payload_len == PR_MODEL_LEN) {
         response.type = PRODUCT_MODEL;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == PR_ID_CTRL && cmd_w == PR_ID_CMD && payload_len == PR_ID_LEN) {
         response.type = PRODUCT_ID;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == HW_MODEL_CTRL && cmd_w == HW_MODEL_CMD && payload_len == HW_MODEL_LEN) {
         response.type = HARDWARE_MODEL;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == FW_VERSION_CTRL && cmd_w == FW_VERSION_CMD && payload_len == FW_VERSION_LEN) {
         response.type = FIRMWARE_VERSION;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == SCENE_SETTINGS_CTRL && cmd_w == SCENE_SETTINGS_CMD && payload_len == SCENE_SETTINGS_LEN) {
         response.type = SCENE_SETTINGS;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == SCENE_SETTINGS_I_CTRL && cmd_w == SCENE_SETTINGS_I_CMD && payload_len == SCENE_SETTINGS_I_LEN) {
         response.type = SCENE_SETTINGS_I;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == SENSITIVITY_SETTINGS_I_CTRL && cmd_w == SENSITIVITY_SETTINGS_I_CMD && payload_len == SENSITIVITY_SETTINGS_I_LEN) {
         response.type = SENSITIVITY_I;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == SENSITIVITY_SETTINGS_CTRL && cmd_w == SENSITIVITY_SETTINGS_CMD && payload_len == SENSITIVITY_SETTINGS_LEN) {
         response.type = SENSITIVITY;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == PRESENCE_INFO_I_CTRL && cmd_w == PRESENCE_INFO_I_CMD && payload_len == PRESENCE_INFO_I_LEN) {
         response.type = PRESENCE;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == MOTION_INFO_I_CTRL && cmd_w == MOTION_INFO_I_CMD && payload_len == MOTION_INFO_I_LEN) {
         response.type = MOTION;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == BMP_INFO_I_CTRL && cmd_w == BMP_INFO_I_CMD && payload_len == BMP_INFO_I_LEN) {
         response.type = BMP;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == TIME_FOR_NO_PERSON_I_CTRL && cmd_w == TIME_FOR_NO_PERSON_I_CMD && payload_len == TIME_FOR_NO_PERSON_I_LEN) {
         response.type = TIME_FOR_NO_PERSON_I;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == TIME_FOR_NO_PERSON_SETTING_CTRL && cmd_w == TIME_FOR_NO_PERSON_SETTING_CMD && payload_len == TIME_FOR_NO_PERSON_SETTING_LEN) {
         response.type = TIME_FOR_NO_PERSON;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == PROXIMITY_INFO_I_CTRL && cmd_w == PROXIMITY_INFO_I_CMD && payload_len == PROXIMITY_INFO_I_LEN) {
         response.type = PROXIMITY;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == UOF_OUTPUT_SWITCH_CTRL && cmd_w == UOF_OUTPUT_SWITCH_CMD && payload_len == UOF_OUTPUT_SWITCH_LEN) {
         response.type = OUTPUT_SWITCH;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == UOF_OUTPUT_SWITCH_I_CTRL && cmd_w == UOF_OUTPUT_SWITCH_I_CMD && payload_len == UOF_OUTPUT_SWITCH_I_LEN) {
         response.type = OUTPUT_SWITCH_I;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == UOF_EXISTENCE_ENERGY_I_CTRL && cmd_w == UOF_EXISTENCE_ENERGY_I_CMD && payload_len == UOF_EXISTENCE_ENERGY_I_LEN) {
         response.type = EXISTENCE_ENERGY;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == UOF_MOTION_ENERGY_I_CTRL && cmd_w == UOF_MOTION_ENERGY_I_CMD && payload_len == UOF_MOTION_ENERGY_I_LEN) {
         response.type = MOTION_ENERGY;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == UOF_STATIC_DISTANCE_I_CTRL && cmd_w == UOF_STATIC_DISTANCE_I_CMD && payload_len == UOF_STATIC_DISTANCE_I_LEN) {
         response.type = STATIC_DISTANCE;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == UOF_MOTION_DISTANCE_I_CTRL && cmd_w == UOF_MOTION_DISTANCE_I_CMD && payload_len == UOF_MOTION_DISTANCE_I_LEN) {
         response.type = MOTION_DISTANCE;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == UOF_MOTION_SPEED_I_CTRL && cmd_w == UOF_MOTION_SPEED_I_CMD && payload_len == UOF_MOTION_SPEED_I_LEN) {
         response.type = MOTION_SPEED;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == CM_SETTING_CTRL && cmd_w == CM_SETTING_CMD && payload_len == CM_SETTING_LEN) {
         response.type = CUSTOM_MODE;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == CM_SETTING_END_CTRL && cmd_w == CM_SETTING_END_CMD && payload_len == CM_SETTING_END_LEN) {
         response.type = CUSTOM_MODE_END;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == CM_Q_CTRL && cmd_w == CM_Q_CMD && payload_len == CM_Q_LEN) {
         response.type = CUSTOM_MODE_I;
-        response.data = &data[2];
+        response.data = (uint8_t*)&data[2];
+        response.data_l = payload_len;
+        context->sendResponseCallback(&response);
+    }
+    if(ctrl_w == CM_UOF_EXISTENCE_JUDGMENT_THRESH_I_CTRL && cmd_w == CM_UOF_EXISTENCE_JUDGMENT_THRESH_I_CMD && payload_len == CM_UOF_EXISTENCE_JUDGMENT_THRESH_I_LEN) {
+        response.type = EXISTENCE_JUDGMENT_THRESH;
+        response.data = (uint8_t*)&data[2];
+        response.data_l = payload_len;
+        context->sendResponseCallback(&response);
+    }
+    if(ctrl_w == CM_UOF_MOTION_TRIGGER_THRESH_I_CTRL && cmd_w == CM_UOF_MOTION_TRIGGER_THRESH_I_CMD && payload_len == CM_UOF_MOTION_TRIGGER_THRESH_I_LEN) {
+        response.type = MOTION_TRIGGER_THRESH;
+        response.data = (uint8_t*)&data[2];
+        response.data_l = payload_len;
+        context->sendResponseCallback(&response);
+    }
+    if(ctrl_w == CM_UOF_EXISTENCE_PERCEPTION_BOUND_I_CTRL && cmd_w == CM_UOF_EXISTENCE_PERCEPTION_BOUND_I_CMD && payload_len == CM_UOF_EXISTENCE_PERCEPTION_BOUND_I_LEN) {
+        response.type = EXISTENCE_PERCEPTION_BOUND;
+        response.data = (uint8_t*)&data[2];
+        response.data_l = payload_len;
+        context->sendResponseCallback(&response);
+    }
+    if(ctrl_w == CM_UOF_MOTION_TRIGGER_BOUND_I_CTRL && cmd_w == CM_UOF_MOTION_TRIGGER_BOUND_I_CMD && payload_len == CM_UOF_MOTION_TRIGGER_BOUND_I_LEN) {
+        response.type = MOTION_TRIGGER_BOUND;
+        response.data = (uint8_t*)&data[2];
+        response.data_l = payload_len;
+        context->sendResponseCallback(&response);
+    }
+    if(ctrl_w == CM_UOF_MOTION_TRIGGER_TIME_I_CTRL && cmd_w == CM_UOF_MOTION_TRIGGER_TIME_I_CMD && payload_len == CM_UOF_MOTION_TRIGGER_TIME_I_LEN) {
+        response.type = MOTION_TRIGGER_TIME;
+        response.data = (uint8_t*)&data[2];
+        response.data_l = payload_len;
+        context->sendResponseCallback(&response);
+    }
+    if(ctrl_w == CM_UOF_MOTION_TO_STILL_TIME_I_CTRL && cmd_w == CM_UOF_MOTION_TO_STILL_TIME_I_CMD && payload_len == CM_UOF_MOTION_TO_STILL_TIME_I_LEN) {
+        response.type = MOTION_TO_STILL_TIME;
+        response.data = (uint8_t*)&data[2];
+        response.data_l = payload_len;
+        context->sendResponseCallback(&response);
+    }
+    if(ctrl_w == CM_UOF_TIME_FOR_NO_PERSON_I_CTRL && cmd_w == CM_UOF_TIME_FOR_NO_PERSON_I_CMD && payload_len == CM_UOF_TIME_FOR_NO_PERSON_I_LEN) {
+        response.type = CM_TIME_FOR_NO_PERSON;
+        response.data = (uint8_t*)&data[2];
+        response.data_l = payload_len;
+        context->sendResponseCallback(&response);
+    }
+    if(ctrl_w == CM_EXISTENCE_JUDGMENT_THRESH_CTRL && cmd_w == CM_EXISTENCE_JUDGMENT_THRESH_CMD && payload_len == CM_EXISTENCE_JUDGMENT_THRESH_LEN) {
+        response.type = EXISTENCE_JUDGMENT_THRESH;
+        response.data = (uint8_t*)&data[2];
+        response.data_l = payload_len;
+        context->sendResponseCallback(&response);
+    }
+    if(ctrl_w == CM_MOTION_TRIGGER_THRESH_CTRL && cmd_w == CM_MOTION_TRIGGER_THRESH_CMD && payload_len == CM_MOTION_TRIGGER_THRESH_LEN) {
+        response.type = MOTION_TRIGGER_THRESH;
+        response.data = (uint8_t*)&data[2];
+        response.data_l = payload_len;
+        context->sendResponseCallback(&response);
+    }
+    if(ctrl_w == CM_EXISTENCE_PERCEPTION_BOUND_CTRL && cmd_w == CM_EXISTENCE_PERCEPTION_BOUND_CMD && payload_len == CM_EXISTENCE_PERCEPTION_BOUND_LEN) {
+        response.type = EXISTENCE_PERCEPTION_BOUND;
+        response.data = (uint8_t*)&data[2];
+        response.data_l = payload_len;
+        context->sendResponseCallback(&response);
+    }
+    if(ctrl_w == CM_MOTION_TRIGGER_BOUND_CTRL && cmd_w == CM_MOTION_TRIGGER_BOUND_CMD && payload_len == CM_MOTION_TRIGGER_BOUND_LEN) {
+        response.type = MOTION_TRIGGER_BOUND;
+        response.data = (uint8_t*)&data[2];
+        response.data_l = payload_len;
+        context->sendResponseCallback(&response);
+    }
+    if(ctrl_w == CM_MOTION_TRIGGER_TIME_CTRL && cmd_w == CM_MOTION_TRIGGER_TIME_CMD && payload_len == CM_MOTION_TRIGGER_TIME_LEN) {
+        response.type = MOTION_TRIGGER_TIME;
+        response.data = (uint8_t*)&data[2];
+        response.data_l = payload_len;
+        context->sendResponseCallback(&response);
+    }
+    if(ctrl_w == CM_MOTION_TO_STILL_TIME_CTRL && cmd_w == CM_MOTION_TO_STILL_TIME_CMD && payload_len == CM_MOTION_TO_STILL_TIME_LEN) {
+        response.type = MOTION_TO_STILL_TIME;
+        response.data = (uint8_t*)&data[2];
+        response.data_l = payload_len;
+        context->sendResponseCallback(&response);
+    }
+    if(ctrl_w == CM_TIME_FOR_NO_PERSON_CTRL && cmd_w == CM_TIME_FOR_NO_PERSON_CMD && payload_len == CM_TIME_FOR_NO_PERSON_LEN) {
+        response.type = CM_TIME_FOR_NO_PERSON;
+        response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }

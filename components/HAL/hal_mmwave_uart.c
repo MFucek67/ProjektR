@@ -1,3 +1,32 @@
+/**
+ * @file hal_mmwave_uart.c
+ * @author Marko Fuček
+ * @brief Implementacija HAL sloja za mmWave modul.
+ * 
+ * Ovaj modul implementira Hardware Abstraction Layer (HAL) za mmWave driver.
+ * HAL djeluje kao orkestrator između:
+ * -platform sloja (UART, taskovi, eventi, memorija)
+ * -mmWave core sloja (parser, frame protocol logika)
+ * -application sloja (tumačenje podataka iz frame-a)
+ * 
+ * Odgovornosti HAL sloja:
+ * Upravljanje lifecycle-om mmWave sustava.
+ * Stvaranje i gašenje taskova.
+ * Upravljanje UART-om i ISR eventima.
+ * Upravljanje memorijom korištenom za frame-ove.
+ * Sinkronizacija i zaštita heap memorije.
+ * Jedini je sloj koji smije pozivati mmWave core API.
+ * Ne poznaje protokol, strukturu frame-a, niti vrstu senzora.
+ * 
+ * @note Modul je implementiran kao state machine. 
+ * 
+ * @version 0.1
+ * @date 2026-01-22
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
+
 #include <stdio.h>
 #include "HAL/hal_mmwave.h"
 #include "platform/platform_events.h"
@@ -5,28 +34,47 @@
 #include "platform/platform_task.h"
 #include "platform/platform_mutex.h"
 
-#define MAX_SINGLE_ALLOC 2048 //2KB
-#define MAX_TOTAL_ALLOC 32768 //32KB
+/**
+ * @brief Maksimalna količina memorije koja se smije alocirati odjednom u mmWave core sloju.
+ * 
+ * @note 2KB
+ */
+#define MAX_SINGLE_ALLOC 2048
 
-//HAL sloj će biti orkestrator taskova, inicijalizacije UARTA, eventova itd., mmwave_core samo parsira i radi frame-ove
-//HAL ne zna ništa o protokolu i frame-ovima
-//HAL je vlasnik sve memorije, glavnih struktura, a isto tako i parsera -> samo HAL može zvati mmwave_core funkcije
+/**
+ * @brief Ukupna količina memorije koja se maksimalno smije alocirati iz mmWave core sloja.
+ * 
+ * @note 32KB
+ */
+#define MAX_TOTAL_ALLOC 32768
 
-static MutexHandle_t mutex;
-static size_t currently_allocated_mem = 0; //broji zauzetu mem ukupno
-static bool flag1 = false; //dok završi rx task
-static bool flag2 = false; //dok završi tx task
-static HalEventHandle_t event_queue = NULL; //queue s platform events
-static HalMmwaveState current_state = HAL_MMWAVE_UNINIT; //stanje u kojem je machine
-static task_handler rx_task = NULL; //pokazivač na task koji čita eventove i dobiva parsirane frame-ove
-static task_handler tx_task = NULL; //pokazivač na tasko koji piše u TX
-static BoardUartId current_board_id = BOARD_UART_UNINIT; //board id
-static mmWave_core_interface* mmwave_core_API = NULL; //calbackovi na mmwave API -> pozivanje mmwave_core funkcija preko tog
-static mmWave_core_callback mmwave_core_callback; //callbackovi na HAL naredbe -> zvat će ih mmWave_core
-static QueueHandle_t frame_queue = NULL;
-static QueueHandle_t tx_queue = NULL;
+static MutexHandle_t mutex; /**< Mutex za zaštitu heap memorije */
+static size_t currently_allocated_mem = 0; /**< Brojač ukupno zauzete memorije na heapu */
+static bool flag1 = false; /**< Signal završetka RX taska */
+static bool flag2 = false; /**< Signal završetka TX taska */
+static HalEventHandle_t event_queue = NULL; /**< Queue s platform UART eventima */
+static HalMmwaveState current_state = HAL_MMWAVE_UNINIT; /**< Trenutno stanje HAL state machine-a */
+static task_handler rx_task = NULL; /**< Pokazivač na task koji čita eventove i dobiva parsirane frame-ove */
+static task_handler tx_task = NULL; /**< Pokazivač na task koji piše u TX */
+static BoardUartId current_board_id = BOARD_UART_UNINIT; /**< Trenutni UART id */
+static mmWave_core_interface* mmwave_core_API = NULL; /**< mmWave core API -> pozivanje mmwave_core funkcija preko tih callbackova */
+static mmWave_core_callback mmwave_core_callback; /**< Callbackovi na HAL naredbe -> zvat će ih mmWave_core */
+static QueueHandle_t frame_queue = NULL; /**< Queue za primljene frame-ove */
+static QueueHandle_t tx_queue = NULL; /**< Queue koji se koristi za TX frame-ove */
 
-//1. Funkcija za čitanje platform evenata iz platform_event_queue i onda čitanje podataka iz RX te slanje parseru:
+/**
+ * @brief Task za obradu UART RX event-ova.
+ * 
+ * Task dohvaća event-ove iz platform UART event queue (koji su prošli kroz konverziju na platform sloju),
+ * a zatim poziva mmWave core API za parsiranje frame-a.
+ * 
+ * Parsirani frame-ovi se preko HAL callbacka iz mmWave core sloja spremaju u frame queue.
+ * 
+ * Task će se sam ugasiti i osloboditi zauzete resurse kada dispatcher task (definiran u platform sloju)
+ * završi i isprazne se svi do tada dodani eventi iz event queue.
+ * 
+ * @param arg Ne koristi se
+ */
 static void hal_receive_task(void* arg)
 {
     PlatformEvent_t buff;
@@ -47,7 +95,17 @@ static void hal_receive_task(void* arg)
     }
 }
 
-//2. Funkcija za slanje na TX:
+/**
+ * @brief Task za slanje frame-ova preko TX UART pina.
+ * 
+ * Task čeka frame-ove u tx_queue, dohvaća ih i šalje preko UART TX pina, te zatim oslobađa memoriju
+ * koja je bila alocirana za frame.
+ * 
+ * Task će se sam ugasiti i osloboditi zauzete resurse kada dispatcher task (definiran u platform sloju)
+ * završi i isprazne se svi do tada dodani frame-ovi iz tx_queue.
+ * 
+ * @param arg Ne koristi se
+ */
 static void hal_send_task(void* arg)
 {
     QueueElement_t buff;
@@ -64,14 +122,13 @@ static void hal_send_task(void* arg)
             platform_delay_task(20);
             continue;
         }
-        if(hal_dispatcher_ended_flag &&  platform_get_num_of_queue_elements(tx_queue) == 0) {
+        if(hal_dispatcher_ended_flag && platform_get_num_of_queue_elements(tx_queue) == 0) {
             flag2 = true;
             break;
         }
     }
 }
 
-//Ove funckije su vanjske - prenose se aplikacijskom sloju:
 HalMmwaveStatus hal_mmwave_init(hal_mmwave_config* configuration, mmWave_core_interface* core_api)
 {
     UARTStatus us;
@@ -249,8 +306,17 @@ HalMmwaveStatus hal_mmwave_send_frame(const uint8_t* data, size_t data_len, cons
     }
 }
 
-//Funkcija koju mmwave_core preko callbacka zove za slanje SAMO semantički KORISNIH PODATAKA frame-ova u queue:
-//TRUE = frame poslan, FALSE = neuspješno slanje
+/**
+ * @brief Implementacija callback funkcije za spremanje semantički korisnih podataka iz parsiranog frame-a.
+ * 
+ * Funkciju preko callbacka poziva mmWave core sloj kada prepozna semantički ispravan frame.
+ * 
+ * HAL sloj preuzima vlasništvo nad podatcima iz frame-a i sprema ih u interni frame_queue.
+ * 
+ * @param frame_data Pokazivač na strukturu s podatcima iz parsiranog frame-a
+ * @return true ako su podatci uspješno poslani u queue
+ * @return false ako su podatci neuspješno poslani u queue
+ */
 static bool _saveFrame(mmWaveFrameData* frame_data)
 {
     QueueOperationStatus qos;
@@ -269,7 +335,16 @@ static bool _saveFrame(mmWaveFrameData* frame_data)
     }
 }
 
-//Funkcija koju mmwave_core preko callbacka zove za alociranje heap memorije:
+/**
+ * @brief Implementacija callback funkcije za alokaciju heap memorije.
+ * 
+ * HAL ograničava maksimalnu veličinu pojedinačno alocirane memorije, te ukupno zauzetu heap memoriju.
+ * 
+ * Funkcija je thread-safe.
+ * 
+ * @param byte_size Broj bajtova za alokaciju
+ * @return Pokazivač na zauzetu memoriju ili NULL
+ */
 static uint8_t* hal_malloc(size_t byte_size)
 {
     if(byte_size > MAX_SINGLE_ALLOC) {
@@ -289,8 +364,17 @@ static uint8_t* hal_malloc(size_t byte_size)
     return memory;
 }
 
-//funkcija za free -> application sloj će kod čitanja frame-a zvati preko callbacka
-//šalje se na callback i mmwave_core sloju
+/**
+ * @brief Implementacija callback funkcije za oslobađanje heap memorije.
+ * 
+ * Funkciju preko callbacka pozivaju drugi slojevi koji koriste heap objekte
+ * koje je HAL zauzeo (ili oni preko HAL callbacka).
+ * 
+ * HAL vodi evidenciju o ukupno zauzetoj i oslobođenoj memoriji.
+ * 
+ * @param mem Pokazivač na memoriju koja se oslobađa
+ * @param size_of_mem Veličina oslobođene memorije u bajtovima
+ */
 static void hal_free(uint8_t* mem, size_t size_of_mem)
 {
     if(mem == NULL) return;
@@ -309,10 +393,11 @@ static void hal_free(uint8_t* mem, size_t size_of_mem)
     return;
 }
 
-//funkcija za dobivanje frame-a (eventa) iz frame queue (HAL vlasnik, pa app ne smije dobiti pokazivač na queue)
-//app poziva, HAL vraća strukturu
 HalMmwaveStatus hal_mmwave_get_frame_from_queue(QueueElement_t* buffer, uint32_t timeout_in_ms)
 {
+    if(current_state == HAL_MMWAVE_UNINIT || current_state == HAL_MMWAVE_STOPPED) {
+        return HAL_MMWAVE_INVALID_STATE;
+    }
     QueueOperationStatus status;
     status = platform_queue_get(frame_queue, buffer, timeout_in_ms);
     if(status != QUEUE_OK) {
@@ -321,7 +406,6 @@ HalMmwaveStatus hal_mmwave_get_frame_from_queue(QueueElement_t* buffer, uint32_t
     return HAL_MMWAVE_OK;
 }
 
-//funkcija za free frame_data iz app sloja
 void hal_mmwave_release_frame_memory(mmWaveFrameData* frame_data)
 {
     return hal_free(frame_data->data, frame_data->data_len);

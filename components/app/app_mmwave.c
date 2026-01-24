@@ -1,14 +1,26 @@
+/**
+ * @file app_mmwave.c
+ * @author Marko Fuček
+ * @brief Implementacija krovnog API-ja aplikacijskog sloja za mmWave senzor.
+ * 
+ * @note Iz STANDARD MODE-a se ne smiju pozivati UOF upiti.
+ * @note Iz UOF MODE-a se ne smiju pozivati STANDARD MODE upiti.
+ * @note MODE se mijenja promjenom OUTPUT_SWITCH-a.
+ * @note CUSTOM MODE se smije mijenjati tek kad se nalazimo u UOF, 
+ * a on služi isključivo za promjenu parametara UOF-a.
+ * 
+ * @version 0.1
+ * @date 2026-01-24
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
+
 #include <stdint.h>
 #include <stdbool.h>
 #include "app/app_mmwave.h"
 
 static uint8_t data;
-
-//iz STANDARD MODE se ne smiju pozivati UOF upiti
-//iz UOF se ne bi smjeli pozivati STANDARD MODE upiti (zato su zabranjeni)
-//MODE se mijenja promjenom OUTPUT_SWITCHA
-//CUSTOM MODE se smije mijenjati i mijenjati parametri UOF-a tek kad se nalazimo u UOF
-//COSTOM MODE i služi isključivo za promjenu parametara UOF-a
 
 AppSensorStatus mmwave_init(void)
 {
@@ -23,6 +35,11 @@ AppSensorStatus mmwave_start(void)
 AppSensorStatus mmwave_stop(void)
 {
     return app_stop_sys();
+}
+
+bool mmwave_poll_event(MmwaveEvent* out, uint32_t timeout_ms)
+{
+    return app_get_event(out, timeout_ms);
 }
 
 AppSensorStatus app_inquiry_heartbeat(void)
@@ -188,7 +205,7 @@ AppSensorStatus app_inquiry_static_distance(void)
     if(app_get_mode() == SENSOR_MODE_STANDARD) {
         return APP_SENSOR_BAD_MODE;
     }
-    data = UOF_STATIC_DISTANCE_I_CTRL;
+    data = UOF_STATIC_DISTANCE_I_DATA;
     return app_send_inquiry(&data, UOF_STATIC_DISTANCE_I_LEN, UOF_STATIC_DISTANCE_I_CTRL, UOF_STATIC_DISTANCE_I_CMD);
 }
 
@@ -239,12 +256,12 @@ AppSensorStatus app_inquiry_cm_end(void)
     return app_send_inquiry(&data, CM_SETTING_END_LEN, CM_SETTING_END_CTRL, CM_SETTING_END_CMD);
 }
 
-AppSensorStatus app_inquiry_cm_existence_judgement_thresh_set(int existence_judgement_thresh)
+AppSensorStatus app_inquiry_cm_existence_judgement_thresh_set(uint8_t existence_judgement_thresh)
 {
     if(app_get_mode() == SENSOR_MODE_STANDARD) {
         return APP_SENSOR_BAD_MODE;
     }
-    if(existence_judgement_thresh < 0 || existence_judgement_thresh > 250) {
+    if(existence_judgement_thresh > 250) {
         return APP_SENSOR_BAD_ARGUMENT;
     }
     return app_send_inquiry(&existence_judgement_thresh, CM_EXISTENCE_JUDGMENT_THRESH_LEN, CM_EXISTENCE_JUDGMENT_THRESH_CTRL, CM_EXISTENCE_JUDGMENT_THRESH_CMD);
@@ -258,12 +275,12 @@ AppSensorStatus app_inquiry_cm_existence_judgement_thresh_get(void)
     data = CM_UOF_EXISTENCE_JUDGMENT_THRESH_I_DATA;
     return app_send_inquiry(&data, CM_UOF_EXISTENCE_JUDGMENT_THRESH_I_LEN, CM_UOF_EXISTENCE_JUDGMENT_THRESH_I_CTRL, CM_UOF_EXISTENCE_JUDGMENT_THRESH_I_CMD);
 }
-AppSensorStatus app_inquiry_cm_motion_trigger_thresh_set(int motion_trigger_thresh)
+AppSensorStatus app_inquiry_cm_motion_trigger_thresh_set(uint8_t motion_trigger_thresh)
 {
     if(app_get_mode() == SENSOR_MODE_STANDARD) {
         return APP_SENSOR_BAD_MODE;
     }
-    if(motion_trigger_thresh < 0 ||motion_trigger_thresh > 250) {
+    if(motion_trigger_thresh > 250) {
         return APP_SENSOR_BAD_ARGUMENT;
     }
     return app_send_inquiry(&motion_trigger_thresh, CM_MOTION_TRIGGER_THRESH_LEN, CM_MOTION_TRIGGER_THRESH_CTRL, CM_MOTION_TRIGGER_THRESH_CMD);
@@ -314,12 +331,12 @@ AppSensorStatus app_inquiry_cm_motion_trigger_bound_get(void)
     data = CM_UOF_MOTION_TRIGGER_BOUND_I_DATA;
     return app_send_inquiry(&data, CM_UOF_MOTION_TRIGGER_BOUND_I_LEN, CM_UOF_MOTION_TRIGGER_BOUND_I_CTRL, CM_UOF_MOTION_TRIGGER_BOUND_I_CMD);
 }
-AppSensorStatus app_inquiry_cm_motion_trigger_time_set(int time_in_ms)
+AppSensorStatus app_inquiry_cm_motion_trigger_time_set(uint32_t time_in_ms)
 {
     if(app_get_mode() == SENSOR_MODE_STANDARD) {
         return APP_SENSOR_BAD_MODE;
     }
-    if(time_in_ms < 0 || time_in_ms > 1000) {
+    if(time_in_ms > 1000) {
         return APP_SENSOR_BAD_ARGUMENT;
     }
     return app_send_inquiry(&time_in_ms, CM_MOTION_TRIGGER_TIME_LEN, CM_MOTION_TRIGGER_TIME_CTRL, CM_MOTION_TRIGGER_TIME_CMD);
@@ -332,12 +349,12 @@ AppSensorStatus app_inquiry_cm_motion_trigger_time_get(void)
     data = CM_UOF_MOTION_TRIGGER_TIME_I_DATA;
     return app_send_inquiry(&data, CM_UOF_MOTION_TRIGGER_TIME_I_LEN, CM_UOF_MOTION_TRIGGER_TIME_I_CTRL, CM_UOF_MOTION_TRIGGER_TIME_I_CMD);
 }
-AppSensorStatus app_inquiry_cm_motion_to_still_time_set(int time_in_ms)
+AppSensorStatus app_inquiry_cm_motion_to_still_time_set(uint32_t time_in_ms)
 {
     if(app_get_mode() == SENSOR_MODE_STANDARD) {
         return APP_SENSOR_BAD_MODE;
     }
-    if(time_in_ms < 1000 ||time_in_ms > 60000) {
+    if(time_in_ms < 1000 || time_in_ms > 60000) {
         return APP_SENSOR_BAD_ARGUMENT;
     }
     return app_send_inquiry(&time_in_ms, CM_MOTION_TO_STILL_TIME_LEN, CM_MOTION_TO_STILL_TIME_CTRL, CM_MOTION_TO_STILL_TIME_CMD);
@@ -350,12 +367,12 @@ AppSensorStatus app_inquiry_cm_motion_to_still_time_get(void)
     data = CM_UOF_MOTION_TO_STILL_TIME_I_DATA;
     return app_send_inquiry(&data, CM_UOF_MOTION_TO_STILL_TIME_I_LEN, CM_UOF_MOTION_TO_STILL_TIME_I_CTRL, CM_UOF_MOTION_TO_STILL_TIME_I_CMD);
 }
-AppSensorStatus app_inquiry_cm_time_for_no_person_set(int time_in_ms)
+AppSensorStatus app_inquiry_cm_time_for_no_person_set(uint32_t time_in_ms)
 {
     if(app_get_mode() == SENSOR_MODE_STANDARD) {
         return APP_SENSOR_BAD_MODE;
     }
-    if(time_in_ms < 0 ||time_in_ms > 3600000) {
+    if(time_in_ms > 3600000) {
         return APP_SENSOR_BAD_ARGUMENT;
     }
     return app_send_inquiry(&time_in_ms, CM_TIME_FOR_NO_PERSON_LEN, CM_TIME_FOR_NO_PERSON_CTRL, CM_TIME_FOR_NO_PERSON_CMD);

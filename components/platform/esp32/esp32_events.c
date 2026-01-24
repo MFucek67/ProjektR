@@ -1,17 +1,42 @@
+/**
+ * @file esp32_events.c
+ * @author Marko Fuček
+ * @brief ESP32 implementacija platform generic event API-ja.
+ * 
+ * Ovaj modul implementira generički platform event API koji se bazira na FreeRTOS queue.
+ * 
+ * Modul ukljućuje:
+ * Stvaranje i brisanje queue-ova za spremanje eventova.
+ * Blokirajuće i neblokirajuće čeknje na event.
+ * Slanje eventa u queue iz taska i ISR konteksta.
+ * Resetiranje event queue.
+ * 
+ * @version 0.1
+ * @date 2026-01-21
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
+
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
-#include "../include/platform/platform_events.h"
+#include "platform/platform_events.h"
 
-PlatformEventHandle_t platform_create_event_queue(size_t size)
+PlatformEventHandle_t platform_create_event_queue(size_t max_size)
 {
-    if(size <= 0) {
+    if(max_size <= 0) {
         return NULL;
     } else {
-        return xQueueCreate(size, sizeof(PlatformEvent_t));
+        return xQueueCreate(max_size, sizeof(PlatformEvent_t));
     }
 }
 
+/**
+ * @note Funkcija blokira task koji ju poziva sve dok se u queue ne pojavi novi event ili zadani
+ * timeout ne istekne.
+ *  
+ */
 EventStatus platform_event_wait(PlatformEventHandle_t event_queue, PlatformEvent_t* event, uint32_t timeout_in_ms)
 {
     if(event_queue == NULL || event == NULL) {
@@ -24,6 +49,10 @@ EventStatus platform_event_wait(PlatformEventHandle_t event_queue, PlatformEvent
     return PLATFORM_EVENT_TIMEOUT;
 }
 
+/**
+ * @note Funkcija pokušava poslati event u queue i blokira do isteka zadanog timeouta ako ne uspije.
+ * 
+ */
 EventStatus platform_event_post(PlatformEventHandle_t event_queue, PlatformEvent_t* event, uint32_t timeout_in_ms)
 {
     if(event_queue == NULL || event == NULL) {
@@ -36,35 +65,40 @@ EventStatus platform_event_post(PlatformEventHandle_t event_queue, PlatformEvent
     return PLATFORM_EVENT_TIMEOUT;
 }
 
+/**
+ * @note Funkcija koristi FreeRTOS ISR API za slanje eventa u queue izravno iz ISR konteksta,
+ * bez blokiranja. Po potrebi (ako je higher_woken task pdTRUE) funkcija budi task većeg prioriteta, ako je
+ * on bio u redu čekanja na taj queue. Iako je on probuđen, tad je stavljen u listu taskova koji čekaju na
+ * procesorsko vrijeme. On mora odmah krenuti s izvršavanjem, te preko schedulera tom tasku dajemo procesorsko vrijeme.
+ * 
+ */
 EventStatus platform_event_post_from_ISR(PlatformEventHandle_t event_queue, PlatformEvent_t* event)
 {
     if(event_queue == NULL || event == NULL) {
         return PLATFORM_EVENT_ERROR;
     }
 
-    BaseType_t higher_woken = pdFALSE;
     //Ovo je samo flag koji označava jesmo li probudili task većeg prioriteta (onaj koji blokirajuće čeka na event u event_queue)
+    BaseType_t higher_woken = pdFALSE;
 
     if(xQueueSendFromISR(event_queue, event, &higher_woken) != pdTRUE) {
-        /*Scheduler automatski provjerava koji taskovi su blokirani u redu taskova queue-a event_queue i ako ima neki većeg
-        prioriteta od taska koji se trenutno izvodi budi ga, tj. stavlja u pripravne taskove, te postavlja higher_woken flag
-        u pdTRUE!*/
         return PLATFORM_EVENT_ERROR;
     }
-    /*E sad, iako je onaj task većeg prioriteta probuđen, on nije odmah dobio CPU time, što mi ne želimo, jer event može biti
-    jako bitan i želimo da se odmah krene izvršavati potrebna radnja oko eventa - zato pokrećemo funkciju portYIELD_FROM_ISR koja
-    ako dobije pdTRUE pokreće scheduler i tasku većeg prioriteta daje CPU time!*/
     portYIELD_FROM_ISR(higher_woken);
     return PLATFORM_EVENT_OK;
 }
 
+/**
+ * @note Funkcija briše FreeRTOS queue.
+ * @warning Pozivatelj mora garantirati da niti jedan task više ne čeka na queue,
+ * te da niti jedan ISR više ne šalje evente u queue.
+ * 
+ */
 void platform_event_queue_delete(PlatformEventHandle_t event_queue)
 {
     if(event_queue != NULL) {
         vQueueDelete(event_queue);
     }
-    //Moram garantirati da nitko više ne čeka u redu tog queue i da ISR neće više slati u njega
-    //To rješavam u HAL layeru
 }
 
 void platform_event_queue_reset(PlatformEventHandle_t event_queue)
