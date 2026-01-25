@@ -176,51 +176,57 @@ bool app_get_event(MmwaveEvent* out_event, uint32_t timeout_ms)
 
 void onResponse(DecodedResponse* response)
 {
-    MmwaveEvent* ev;
-    if(platform_malloc(&ev, sizeof(MmwaveEvent)) != MEM_OK) {
+    MmwaveEvent ev;
+    ev.type = MMWAVE_EVENT_RESPONSE;
+    ev.response = *response;
+
+    //za queue trebamo alocirani event
+    MmwaveEvent* ev_queue;
+    if(platform_malloc(&ev_queue, sizeof(MmwaveEvent)) != MEM_OK) {
         return;
     }
-    ev->type = MMWAVE_EVENT_RESPONSE;
-    ev->response = *response;
+    *ev_queue = ev;
 
     QueueElement_t q_el = {
-        .data = (uint8_t*)ev,
+        .data = (uint8_t*)ev_queue,
         .len = sizeof(MmwaveEvent)
     };
 
     //šaljemo event u queue
     if(platform_queue_send(app_event_queue, &q_el, 10) != QUEUE_OK) {
-        platform_free(ev);
+        platform_free(ev_queue);
         return;
     }
-    //ako je callback zadan, šaljemo "notification" i preko njega
-    if(higher_app_callback) {
-        higher_app_callback(ev);
+    if(higher_app_callback) { //callbacku dajemo kopiju event strukture
+        higher_app_callback(&ev);
     }
 }
 
 void onReport(DecodedReport* report)
 {
-    MmwaveEvent* ev;
-    if(platform_malloc(&ev, sizeof(MmwaveEvent)) != MEM_OK) {
+    MmwaveEvent ev;
+    ev.type = MMWAVE_EVENT_REPORT;
+    ev.report = *report;
+
+    //za queue trebamo alocirani event
+    MmwaveEvent* ev_queue;
+    if(platform_malloc(&ev_queue, sizeof(MmwaveEvent)) != MEM_OK) {
         return;
     }
-    ev->type = MMWAVE_EVENT_REPORT;
-    ev->report = *report;
+    *ev_queue = ev;
 
     QueueElement_t q_el = {
-        .data = (uint8_t*)ev,
+        .data = (uint8_t*)ev_queue,
         .len = sizeof(MmwaveEvent)
     };
 
     //šaljemo event u queue
     if(platform_queue_send(app_event_queue, &q_el, 10) != QUEUE_OK) {
-        platform_free(ev);
+        platform_free(ev_queue);
         return;
     }
-    //ako je callback zadan, šaljemo "notification" i preko njega
-    if(higher_app_callback) {
-        higher_app_callback(ev);
+    if(higher_app_callback) { //callbacku dajemo kopiju event strukture
+        higher_app_callback(&ev);
     }
 }
 

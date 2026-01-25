@@ -37,6 +37,15 @@ AppSensorStatus mmwave_stop(void)
     return app_stop_sys();
 }
 
+AppSensorStatus registrate_onEvent_function(MMwaveEventCallback fun)
+{
+    if(!fun) {
+        return APP_SENSOR_BAD_ARGUMENT;
+    }
+    mmwave_register_event_callback(fun);
+    return APP_SENSOR_OK;
+}
+
 bool mmwave_poll_event(MmwaveEvent* out, uint32_t timeout_ms)
 {
     return app_get_event(out, timeout_ms);

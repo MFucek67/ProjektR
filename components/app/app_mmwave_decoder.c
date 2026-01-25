@@ -445,43 +445,43 @@ void app_mmwave_decoder_process_frame(uint8_t* data, size_t data_len)
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == CM_UOF_EXISTENCE_JUDGMENT_THRESH_I_CTRL && cmd_w == CM_UOF_EXISTENCE_JUDGMENT_THRESH_I_CMD && payload_len == CM_UOF_EXISTENCE_JUDGMENT_THRESH_I_LEN) {
-        response.type = EXISTENCE_JUDGMENT_THRESH;
+        response.type = EXISTENCE_JUDGMENT_THRESH_I;
         response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == CM_UOF_MOTION_TRIGGER_THRESH_I_CTRL && cmd_w == CM_UOF_MOTION_TRIGGER_THRESH_I_CMD && payload_len == CM_UOF_MOTION_TRIGGER_THRESH_I_LEN) {
-        response.type = MOTION_TRIGGER_THRESH;
+        response.type = MOTION_TRIGGER_THRESH_I;
         response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == CM_UOF_EXISTENCE_PERCEPTION_BOUND_I_CTRL && cmd_w == CM_UOF_EXISTENCE_PERCEPTION_BOUND_I_CMD && payload_len == CM_UOF_EXISTENCE_PERCEPTION_BOUND_I_LEN) {
-        response.type = EXISTENCE_PERCEPTION_BOUND;
+        response.type = EXISTENCE_PERCEPTION_BOUND_I;
         response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == CM_UOF_MOTION_TRIGGER_BOUND_I_CTRL && cmd_w == CM_UOF_MOTION_TRIGGER_BOUND_I_CMD && payload_len == CM_UOF_MOTION_TRIGGER_BOUND_I_LEN) {
-        response.type = MOTION_TRIGGER_BOUND;
+        response.type = MOTION_TRIGGER_BOUND_I;
         response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == CM_UOF_MOTION_TRIGGER_TIME_I_CTRL && cmd_w == CM_UOF_MOTION_TRIGGER_TIME_I_CMD && payload_len == CM_UOF_MOTION_TRIGGER_TIME_I_LEN) {
-        response.type = MOTION_TRIGGER_TIME;
+        response.type = MOTION_TRIGGER_TIME_I;
         response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == CM_UOF_MOTION_TO_STILL_TIME_I_CTRL && cmd_w == CM_UOF_MOTION_TO_STILL_TIME_I_CMD && payload_len == CM_UOF_MOTION_TO_STILL_TIME_I_LEN) {
-        response.type = MOTION_TO_STILL_TIME;
+        response.type = MOTION_TO_STILL_TIME_I;
         response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);
     }
     if(ctrl_w == CM_UOF_TIME_FOR_NO_PERSON_I_CTRL && cmd_w == CM_UOF_TIME_FOR_NO_PERSON_I_CMD && payload_len == CM_UOF_TIME_FOR_NO_PERSON_I_LEN) {
-        response.type = CM_TIME_FOR_NO_PERSON;
+        response.type = CM_TIME_FOR_NO_PERSON_I;
         response.data = (uint8_t*)&data[2];
         response.data_l = payload_len;
         context->sendResponseCallback(&response);

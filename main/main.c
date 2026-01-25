@@ -1,462 +1,321 @@
+/**
+ * @file main.c
+ * @author Marko Fuček
+ * @brief Minimalni funkcionalni test mmWave API-ja.
+ * 
+ * Ovaj main služi isključivo za test i prikaz osnovnih funkcionalnosti mmWave
+ * aplikacijskog API-ja i ne predstavlja punu aplikaciju.
+ * 
+ * @version 0.1
+ * @date 2026-01-24
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
+
 #include <stdio.h>
 #include <string.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_log.h"
-#include "driver/uart.h"
-#include "driver/gpio.h"
-#include "freertos/ringbuf.h"
-#include "esp_mac.h"
+#include "app/app_mmwave.h"
 
-#define TX_PIN GPIO_NUM_17
-#define RX_PIN GPIO_NUM_16
-#define UART_PORT UART_NUM_2
-#define TASK_STACK_SIZE 7000
-#define UART_RX_BUFFER_SIZE 256
-#define UART_TX_BUFFER_SIZE 256
-
-//definicije za headere i footere:
-#define HEADER1 0x53
-#define HEADER2 0x59
-#define FOOTER1 0x54
-#define FOOTER2 0x43
-
-//definicije za Control Word:
-#define CONTROL_SYSTEM_FUNCTIONS 0x01
-#define CONTROL_PRODUCT_INFORMATION 0x02
-#define CONTROL_WORK_STATUS 0x05
-#define CONTROL_HUMAN_PRESENCE_FUNCTION 0x80
-#define CONTROL_UART_UPGRADE 0x03
-#define CONTROL_OPEN_FUNCTION 0x08
-
-//definicije za Command Word:
-#define COMMAND_HEARTBEAT 0x01
-#define COMMAND_MODULE_RESET 0x02
-#define COMMAND_PRODUCT_MODEL 0xA1
-#define COMMAND_PRODUCT_ID 0xA2
-#define COMMAND_HARDWARE_MODEL 0xA3
-#define COMMAND_FIRMWARE_VERSION 0xA4
-#define COMMAND_SCENE_SETTINGS 0x07
-#define COMMAND_SENSITIVITY_SETTINGS 0x08
-#define COMMAND_INITIALIZATION_STATUS_INQUIRY 0x81
-#define COMMAND_SCENE_SETTINGS_INQUIRY 0x87
-#define COMMAND_SENSITIVITY_SETTINGS_INQUIRY 0x88
-#define COMMAND_REPORTING_OF_PRESENCE 0x01
-#define COMMAND_REPORTING_OF_MOTION 0x02
-#define COMMAND_REPORTING_OF_BODY_MOVEMENT_PARAMETER 0x03
-#define COMMAND_REPORTING_OF_PROXIMITY 0x0B
-#define COMMAND_TIME_FOR_ENTERING_NO_PERSON_STATE 0x0A
-#define COMMAND_PRESENCE_INFORMATION_INQUIRY 0x81
-#define COMMAND_MOTION_INFORMATION_INQUIRY 0x82
-#define COMMAND_BODY_MOVEMENT_PARAMETER_INQUIRY 0x83
-#define COMMAND_PROXIMITY_INQUIRY 0x8B
-#define COMMAND_TIME_FOR_ENTERING_NO_PERSON_STATE_INQUIRY 0x8A
-#define COMMAND_START_UART_UPGRADE 0x01
-#define COMMAND_UPGRADE_PACKAGE_TRANSMISSON 0x02
-#define COMMAND_ENDING_THE_UART_UPGRADE 0x03
-#define COMMAND_UNDERLYING_OPEN_FUNCTION_SWITCH 0x00
-#define COMMAND_UNDERLYING_OPEN_FUNCTION_SWITCH_INQUIRY 0x80
-#define COMMAND_REPORTING_OF_SENSOR_INFORMATION 0x01
-#define COMMAND_EXISTENCE_ENERGY_VALUE_INQUIRY 0x81
-#define COMMAND_MOTION_ENERGY_VALUE_INQUIRY 0x82
-#define COMMAND_STATIC_DISTANCE_INQUIRY 0x83
-#define COMMAND_MOTION_DISTANCE_INQUIRY 0x84
-#define COMMAND_MOTION_SPEED_INQUIRY 0x85
-
-//pomoćne funkcije:
-uint8_t calculate_checksum(uint8_t* frame, int frame_length) {
-    uint16_t summ = 0;
-    for(int i = 0; i < frame_length - 3; i++) {
-        summ += frame[i];
-    }
-    return ((uint8_t)(summ & 0xFF));
-}
-
-esp_err_t send_data_through_tx(uint8_t control, uint8_t command, uint8_t h_length, uint8_t l_length, uint8_t* data, int data_length) {
-    uint8_t msg[9 + data_length];
-    msg[0] = HEADER1;
-    msg[1] = HEADER2;
-    msg[2] = control;
-    msg[3] = command;
-    msg[4] = h_length;
-    msg[5] = l_length;
-    int i = 0;
-    for(; i < data_length; i++) {
-        msg[i + 6] = data[i];
-    }
-    msg[i + 6] = calculate_checksum(&msg, 7 + data_length);
-    msg[i + 1 + 6] = FOOTER1;
-    msg[i + 2 + 6] = FOOTER2;
-
-    return uart_write_bytes(UART_PORT, msg, sizeof(uint8_t) * (9 + data_length));
-}
-
-typedef struct motion_data {
-    uint8_t existance_energy;
-    uint8_t static_distance;
-    uint8_t motion_energy;
-    uint8_t motion_distance;
-    uint8_t motion_speed;
-} open_motion_data_t;
-
-static QueueHandle_t event_queue;
-static QueueHandle_t frames_queue;
-TickType_t last_frame_time = 0;
-TickType_t last_heartbeat = 0;
-
-static void check_mmwave(void *args)
+void fun1(MmwaveEvent* event) 
 {
-    printf("Check mmWave Task started!\n");
-
-    for(;;) {
-        //ispitivanje Heartbeat senzora -> svakih 500 ms ako ne šalje nove okvire
-        if((xTaskGetTickCount() - last_frame_time > pdMS_TO_TICKS(500)) && (xTaskGetTickCount() - last_heartbeat > pdMS_TO_TICKS(5000))) {
-            const uint8_t checksum = ((uint16_t) (0x53 + 0x59 + 0x01 + 0x01 + 0x00 + 0x01 + 0x0F) & 0xFF);
-            const uint8_t msg[10] = {0x53, 0x59, 0x01, 0x01, 0x00, 0x01, 0x0F, checksum, 0x54, 0x43};
-            uart_write_bytes(UART_NUM_2, msg, sizeof(uint8_t) * 10);
-            last_heartbeat = xTaskGetTickCount();
-        }
-        vTaskDelay(pdMS_TO_TICKS(50));
+    if(!event) {
+        printf("Pogreska sustava.\n");
+    }
+    if(event->type == MMWAVE_EVENT_REPORT) {
+        printf("Dosao je novi report, pollaj ga.\n");
+    } else if(event->type == MMWAVE_EVENT_RESPONSE) {
+        printf("Dosao je response na inquiry, pollaj ga.\n");
+    } else {
+        printf("Greska u sustavu oko event callbacka.\n");
     }
 }
 
-static void uart_parser(void *args)
+void analise_event(int* reports_to_wait, int* responses_to_wait)
 {
-    uart_event_t event;
-    uint8_t parsing_buff[128]; //pomoćni buffer -> za pohranu dobivenih bajtova
-    uint8_t frame[20]; //pomoćni buffer -> za izgradnju valjanog okvira -> maksimalna duljina neka bude 20 bajtova
-    int parsing_buff_len = 0; //broj bajtova u pomoćnom bufferu za pohranu bajtova
-    int built_frame_len = 0; //broj bajtova u pomoćnom buffera za izgradnju okvira
-    int starting_point = 0;
-    bool head1 = false; //head bajt 1 pronađen (0x53)
-    bool head2 = false; //head bajt 2 pronađen (0x59)
-    int fixed_elements = 0;
-    int payload_len = 0;
+    MmwaveEvent sensor_event;
+    if(mmwave_poll_event(&sensor_event, 20)) {
+            MmwaveEventType ev_type = sensor_event.type;
+            DecodedReport rep;
+            DecodedResponse res;
+            printf("Pollan je : %s", (ev_type == MMWAVE_EVENT_REPORT) ? "report\n" : "response\n");
 
-    printf("Uart parser Task started!\n");
+            if(ev_type == MMWAVE_EVENT_REPORT) { //slučaj reporta
+                rep = sensor_event.report;
+                *(reports_to_wait)--;
 
-    for(;;) {
-        if(xQueueReceive(event_queue, &event, portMAX_DELAY)) {
-            switch(event.type)
-            {
-                case UART_DATA:
-                    //postavljamo broj tikova kod dolaska okvira - ne treba Heartbeat provjera
-                    last_frame_time = xTaskGetTickCount();
-                    last_heartbeat = xTaskGetTickCount();
-
-                    //maksimalno 128 bajtova se čita iz RX buffera
-                    int space = sizeof(parsing_buff) - parsing_buff_len;
-                    if(space > 0) {
-                        int len = uart_read_bytes(UART_NUM_2, (parsing_buff + parsing_buff_len), space, pdMS_TO_TICKS(20));
-                        parsing_buff_len += len;
-                        //Provjera:
-                        printf("RX (%d): ", len);
-                        for (int k = 0; k < len; k++) {
-                            printf("%02X ", parsing_buff[parsing_buff_len - len + k]);
-                        }
-                        printf("\n");
+                if(rep.has_init_completed_info) {
+                    if(rep.init_completed_info) { //ako je init completed info
+                        printf("Init completed!\n");
+                    } else {
+                        printf("Init not completed!\n");
                     }
-
-                    for(int i = starting_point; i < parsing_buff_len; i++) {
-                        uint8_t b = parsing_buff[i];
-                        if(!head1) {
-                            //nismo još pronašli 0x53
-                            if(parsing_buff[i] == 0x53) {
-                                //HEAD1 nađen
-                                //prvo brišemo "smeće bajtove"
-                                memmove(parsing_buff, (parsing_buff + starting_point), (parsing_buff_len - starting_point));
-                                parsing_buff_len -= starting_point;
-                                starting_point = 0;
-                                i = starting_point;
-
-                                //zatim dodajemo bajt u buffer za izgradnju
-                                frame[0] = b;
-                                head1 = true;
-                                built_frame_len += 1;
-                            } else {
-                                //probaj naći head1 dalje
-                                starting_point++;
-                                continue;
-                            }
-                        } else if(head1 && !head2) {
-                            //imamo 0x53, ali nemamo 0x59
-                            if(parsing_buff[i] == 0x59) {
-                                //HEAD2 nađen
-                                frame[1] = b;
-                                head2 = true;
-                                built_frame_len += 1;
-                            } else {
-                                //HEAD2 nije nađen
-                                //moramo izbaciti "smeće bajt" i ponovno pokrenuti traženje HEAD1
-                                memmove(parsing_buff, (parsing_buff + 1), (parsing_buff_len - 1));
-                                i--;
-                                parsing_buff_len--;
-                                head1 = false;
-                                built_frame_len = 0;
-                            }
-                        } else if(head1 && head2) {
-                            //sad kada imamo HEAD - krećemo graditi okvir dalje
-
-                            frame[built_frame_len] = b;
-                            built_frame_len++;
-
-                            //prvo uzimamo ControlWord, CommandWord i LengthIdentification (ukupno 4 bajta):
-                            if(fixed_elements < 4) {
-                                fixed_elements++;
-                            } else if(fixed_elements == 4) {
-                                //kada smo ih uzeli, čitamo duljinu payloada
-                                payload_len = ((uint16_t)(frame[4] << 8) | (uint16_t)frame[5]);
-                                fixed_elements++;
-                            } else {
-                                //tu čitamo ostale bajtove (Payload, Checksum i Tail):
-                                if(built_frame_len == (2 + 4 + payload_len + 1 + 2)) {
-                                    //ako smo ovdje, pročitali smo cijeli okvir - provjera taila i checksuma
-
-                                    if(frame[2 + 4 + payload_len + 1] == 0x54 && frame[2 + 4 + payload_len + 2] == 0x43) {
-                                        //TAIL dobar -> još ispitujemo checksum
-                                        uint16_t sum = 0;
-                                        for(int j = 0; j < (2 + 4 + payload_len - 1); j++) {
-                                            sum += frame[j];
-                                        }
-                                        if(frame[2 + 4 + payload_len - 1] == ((uint8_t) (sum & 0xFF))) {
-                                            //checksum je dobar
-                                            if(xQueueSend(frames_queue, frame, pdMS_TO_TICKS(10)) != pdTRUE) {
-                                                //timeout = 10ms -> čekaj toliko ako je queue pun i probaj opet, inače vrati pdFALSE
-                                                printf("Queue pun, frame izgubljen!\n");
-                                            }
-                                            //nakon poslanog okvira resetiramo stanje
-                                            head1 = false;
-                                            head2 = false;
-                                            built_frame_len = 0;
-                                            fixed_elements = 0;
-
-                                            if(parsing_buff_len > (2 + 4 + payload_len + 1 + 2)) {
-                                                //Ako ima još bajtova iza kraja okvira
-                                                memmove(parsing_buff, (parsing_buff + (2 + 4 + payload_len + 1 + 2)), 
-                                                    (parsing_buff_len - (2 + 4 + payload_len + 1 + 2)));
-                                                parsing_buff_len -= (2 + 4 + payload_len + 1 + 2);
-                                                starting_point = 0;
-                                                i = starting_point; //iteriraj od početka novog niza 
-                                            } else if(parsing_buff_len == (2 + 4 + payload_len + 1 + 2)) {
-                                                //Ima još točno 1 valjan okvir i onda nema bajtova
-                                                parsing_buff_len = 0;
-                                                starting_point = 0;
-                                            } else {
-                                                //Ako nema više bajtova iza okvira, samo završi
-                                            }
-                                        } else {
-                                            //checksum nije dobar -> opet traži okvir (ponovno HEAD)
-                                            head1 = false;
-                                            head2 = false;
-                                            built_frame_len = 0;
-                                            fixed_elements = 0;
-                                            //ne odbacujemo svih N bajtova, već samo prva 2 (HEAD) i opet tražimo ispočetka
-                                            if(parsing_buff_len > 2) {
-                                                memmove(parsing_buff, (parsing_buff + 2), (parsing_buff_len - 2));
-                                            }
-                                            parsing_buff_len -= 2;
-                                            starting_point = 0;
-                                            i = starting_point;
-                                        }
-                                    } else {
-                                        //TAIL nije dobar -> opet tražimo HEAD
-                                        head1 = false;
-                                        head2 = false;
-                                        built_frame_len = 0;
-                                        fixed_elements = 0;
-                                        //ne odbacujemo svih N bajtova, već samo prva 2 (HEAD) i opet tražimo ispočetka
-                                        if(parsing_buff_len > 2) {
-                                            memmove(parsing_buff, (parsing_buff + 2), (parsing_buff_len - 2));
-                                        }
-                                        parsing_buff_len -= 2;
-                                        starting_point = 0;
-                                        i = starting_point;
-                                    }
-                                }
-                            }
-                        }
+                } else if(rep.has_bmp_info) { //ako je BMP info
+                    printf("BMP report: %d\n", rep.bmp_info);
+                } else if(rep.has_motion_info) { //ako je motion info
+                    switch (rep.motion_info)
+                    {
+                    case NONE:
+                        printf("Motion: NONE\n");
+                        break;
+                    case MOTIONLESS:
+                        printf("Motion: MOTIONLESS\n");
+                        break;
+                    case ACTIVE:
+                        printf("Motion: ACTIVE\n");
+                        break;
+                    default:
+                        break;
                     }
-                    break;
-                case UART_FIFO_OVF: //overflow RX buffera - ne čitamo dovoljno brzo
-                    printf("UART FIFO overflow!\n");
-                    uart_flush(UART_NUM_2);
-                    xQueueReset(event_queue);
-                    built_frame_len = 0;
-                    head1 = false;
-                    head2 = false;
-                    parsing_buff_len = 0;
-                    starting_point = 0;
-                    fixed_elements = 0;
-                    break;
-                case UART_BUFFER_FULL: //overflow driver buffera
-                    printf("Driver RX buffer full!\n");
-                    uart_flush(UART_NUM_2);
-                    xQueueReset(event_queue);
-                    built_frame_len = 0;
-                    head1 = false;
-                    head2 = false;
-                    parsing_buff_len = 0;
-                    starting_point = 0;
-                    fixed_elements = 0;
-                    break;
-                default:
-                    break;
-            }
-        }
-    }
-}
+                } else if(rep.has_presence_info) { //ako je presence info
+                    switch (rep.presence_info)
+                    {
+                    case UNOCCUPIED:
+                        printf("Presence: UNOCCUPIED\n");
+                        break;
+                    case OCCUPIED:
+                        printf("Presence: OCCUPIED\n");
+                        break;
+                    default:
+                        break;
+                    }
+                } else if(rep.has_proximity_info) { //ako je proximity info
+                    switch (rep.proximity_info)
+                    {
+                    case NO_STATE:
+                        printf("Proximity: NO_STATE\n");
+                        break;
+                    case NEAR:
+                        printf("Proximity: NEAR\n");
+                        break;
+                    case FAR:
+                        printf("Proximity: FAR\n");
+                        break;
+                    default:
+                        break;
+                    }
+                } else if(rep.has_uof_report) { //ako je UOF report
+                    int existence_e = rep.uof_rep.existence_energy;
+                    float static_d = rep.uof_rep.static_distance;
+                    int motion_e = rep.uof_rep.motion_energy;
+                    float motion_d = rep.uof_rep.motion_distance;
+                    float motion_s = rep.uof_rep.motion_speed;
+                    printf("UOF report: Existence energy: %d, Static distance: %f, Motion energy: %d, Motion distance: %f, Motion speed: %f\n", existence_e, static_d, motion_e, motion_d, motion_s);
+                }
+            } else if(ev_type == MMWAVE_EVENT_RESPONSE) { //slučaj responsea
+                res = sensor_event.response;
+                *(responses_to_wait)--;
 
-static void frame_reader(void *arg) {
-    uint8_t frame[20];
-    bool presence_state = false;
-    uint8_t motion_state = 0x00;
-
-    printf("Frame reader task started!\n");
-
-    for(;;) {
-        if(xQueueReceive(frames_queue, frame, portMAX_DELAY)) {
-            //u varijablu (buffer) frame čitamo okvir za koji znamo da je dobar
-            uint8_t control_word = frame[2];
-            uint8_t command_word = frame[3];
-            uint8_t data = frame[6];
-            switch (control_word)
-            {
-            case 0x01:
-                //Heartbeat report
-                printf("mmWave Module alive!\n");
-                break;
-            case 0x80:
-                //Očitanja sa senzora - report ljudske prisutnosti i aktivnosti
-                //Ovdje ide obrada očitanja
-                switch (command_word)
+                switch (res.type)
                 {
-                case 0x01:
-                    //prisutnost
-                    if(data == 0x00) {
-                        if(presence_state == true) {
-                            printf("Person left the room!\n");
-                            presence_state = false;
-                        }
-                    } else {
-                        if(presence_state == false) {
-                            printf("Person entered the room!\n");
-                            presence_state = true;
-                        }
-                    }
+                case HEARTBEAT:
+                    printf("Heartbeat - module alive.\n");
                     break;
-                case 0x02:
-                    //kretanje
-                    if(data == 0x00) {
-                        if(motion_state == 0x01) {
-                            printf("Person which was motionless in the room left!\n");                            
-                        } else if(motion_state == 0x02) {
-                            printf("Person which was moving in the room left!\n");
-                        }
-                        motion_state = 0x00;
-                    } else if(data == 0x01) {
-                        if(motion_state == 0x00) {
-                            printf("Somebody entered the room and now is motionless!\n");
-                        } else if(motion_state == 0x02) {
-                            printf("Somebody who was moving is now motionless!\n");
-                        }
-                        motion_state = 0x01;
-                    } else {
-                        if(motion_state == 0x00) {
-                            printf("Somebody who was not here entered the room and is moving!\n");
-                        } else if(motion_state == 0x01) {
-                            printf("Somebody who was motionless is now moving!\n");
-                        }
-                        motion_state = 0x02;
-                    }
+                case MODULE_RESET:
+                    printf("Module reset successful.\n");
                     break;
-                case 0x03:
-                    //BMP - za sada ništa
+                case PRODUCT_MODEL:
+                    printf("Product model: %d.\n", res.data);
                     break;
-                case 0x0B:
-                    //očitanje blizine
-                    if(data == 0x00) {
-                        //ništa
-                    } else if(data == 0x01) {
-                        printf("Person approaching sensor!\n");
-                    } else {
-                        printf("Person moving away from sensor!\n");
-                    }
+                case PRODUCT_ID:
+                    printf("Product ID: %d.\n", res.data);
+                    break;
+                case INIT_STATUS:
+                    printf("Initialization completed.\n");
+                    break;
+                case HARDWARE_MODEL:
+                    printf("Hardware model: %d.\n", res.data);
+                    break;
+                case FIRMWARE_VERSION:
+                    printf("Firmware version: %d.\n", res.data);
+                    break;
+                case SCENE_SETTINGS:
+                    printf("Scene settings set.\n");
+                    break;
+                case SCENE_SETTINGS_I:
+                    printf("Scene settings are: %d.\n", res.data);
+                    break;
+                case SENSITIVITY:
+                    printf("Sensitivity settings set.\n");
+                    break;
+                case SENSITIVITY_I:
+                    printf("Sensitivity settings are: %d.\n", res.data);
+                    break;
+                case PRESENCE:
+                    printf("Presence is: %d.\n", res.data);
+                    break;
+                case MOTION:
+                    printf("Motion is: %d.\n", res.data);
+                    break;
+                case BMP:
+                    printf("BMP is: %d.\n", res.data);
+                    break;
+                case TIME_FOR_NO_PERSON:
+                    printf("Time for no person set.\n");
+                    break;
+                case TIME_FOR_NO_PERSON_I:
+                    printf("Time for no person is: %d.\n", res.data);
+                    break;
+                case PROXIMITY:
+                    printf("Proximity is: %d.\n", res.data);
+                    break;
+                case OUTPUT_SWITCH:
+                    printf("Output switch set.\n");
+                    break;
+                case OUTPUT_SWITCH_I:
+                    printf("Output switch is: %d.\n", res.data);
+                    break;
+                case EXISTENCE_ENERGY:
+                    printf("Existence energy is: %d.\n", res.data);
+                    break;
+                case MOTION_ENERGY:
+                    printf("Motion energy is: %d.\n", res.data);
+                    break;
+                case STATIC_DISTANCE:
+                    printf("Static distance is: %d.\n", res.data);
+                    break;
+                case MOTION_DISTANCE:
+                    printf("Motion distance is: %d.\n", res.data);
+                    break;
+                case MOTION_SPEED:
+                    printf("Motion speed is: %d.\n", res.data);
+                    break;
+                case CUSTOM_MODE:
+                    printf("Custom mode settings open.\n");
+                    break;
+                case CUSTOM_MODE_END:
+                    printf("Custom mode settings closed.\n");
+                    break;
+                case CUSTOM_MODE_I:
+                    printf("Current custom mode is: %d.\n", res.data);
+                    break;
+                case EXISTENCE_JUDGMENT_THRESH:
+                    printf("Existence judgment thresh set.\n");
+                    break;
+                case MOTION_TRIGGER_THRESH:
+                    printf("Motion trigger thresh set.\n");
+                    break;
+                case EXISTENCE_PERCEPTION_BOUND:
+                    printf("Existence perception boundary set.\n");
+                    break;
+                case MOTION_TRIGGER_BOUND:
+                    printf("Motion trigger boundary set.\n");
+                    break;
+                case MOTION_TRIGGER_TIME:
+                    printf("Motion trigger time set.\n");
+                    break;
+                case MOTION_TO_STILL_TIME:
+                    printf("Motion to still time set.\n");
+                    break;
+                case CM_TIME_FOR_NO_PERSON:
+                    printf("Custom mode time for entering no person set.\n");
+                    break;
+                case EXISTENCE_JUDGMENT_THRESH_I:
+                    printf("Existence judgment thresh is currently: %d.\n", res.data);
+                    break;
+                case MOTION_TRIGGER_THRESH_I:
+                    printf("Motion trigger thresh is currently: %d.\n", res.data);
+                    break;
+                case EXISTENCE_PERCEPTION_BOUND_I:
+                    printf("Existence perception boundary is currently: %d.\n", res.data);
+                    break;
+                case MOTION_TRIGGER_BOUND_I:
+                    printf("Motion trigger boundary is currently: %d.\n", res.data);
+                    break;
+                case MOTION_TRIGGER_TIME_I:
+                    printf("Motion trigger time is currently: %d.\n", res.data);
+                    break;
+                case MOTION_TO_STILL_TIME_I:
+                    printf("Motion to still time is currently: %d.\n", res.data);
+                    break;
+                case CM_TIME_FOR_NO_PERSON_I:
+                    printf("Custom mode time for entering no person is currently: %d.\n", res.data);
                     break;
                 default:
                     break;
                 }
-            default:
-                break;
             }
         }
-    }
-}
-
-bool init_function(void) 
-{
-    const uart_config_t uart_config = { //postavljanje konfiguracije UART veze
-        .baud_rate = 115200, //brzina 115200bps
-        .data_bits = UART_DATA_8_BITS, //8 data bita
-        .parity = UART_PARITY_DISABLE, //paritet isključen
-        .stop_bits = UART_STOP_BITS_1, //1 stop bit
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE, //isključen hardware flow control
-        .source_clk = UART_SCLK_DEFAULT
-    };
-    if(uart_param_config(UART_NUM_2, &uart_config) != ESP_OK) { //koristimo UART_2
-        printf("Neuspješna konfiguracija UART parametara!\n");
-        return false;
-    }
-    
-    //sada postavljamo UART driver - kako će se ponašati ISR na primljene evente
-    //maksimalno 20 eventova u event Queue
-    if(uart_driver_install(UART_NUM_2, RX_BUFF_SIZE * 2, RX_BUFF_SIZE * 2, 20, &event_queue, 0) != ESP_OK) {
-        printf("Neuspješna instalacija UART drivera!\n");
-        return false;
-    }
-    assert(event_queue != NULL); //assert ruši program ako je uvjet neistinit
-    if(uart_set_pin(UART_NUM_2, TX_PIN, RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE) != ESP_OK) {
-        printf("Neuspješno postavljanje UART pinova!\n");
-        return false;
-    }
-
-    //postavljamo granicu za ISR event UART_DATA na 10 bajta, tj. svaki mmWave okvir
-    if(uart_set_rx_full_threshold(UART_NUM_2, RX_THRESH) != ESP_OK) {
-        printf("Neuspješno postavljanje ISR event UART_DATA granice!\n");
-        return false;
-    }
-
-    //kreiramo queue za gotove okvire -> max 20 okvira, svaki veličine 10 bajtova
-    frames_queue = xQueueCreate(20, 10 * sizeof(uint8_t));
-    if(frames_queue == NULL) {
-        printf("Neuspješno stvaranje frames_queue!\n");
-        return false;
-    }
-    printf("Driver initialized!\n");
-    return true;
 }
 
 void app_main(void)
 {
-    bool safe_start = init_function();
-    last_frame_time = xTaskGetTickCount(); //inicijalno postavi broj tickova kod stvaranja taska
-    last_heartbeat = xTaskGetTickCount(); //inicijalno postavi broj tickova kod stvaranja taska
+    printf("-------- mmWave API test --------\n\n");
 
-    if(safe_start) { //uspješna inicijalizacije drivera -> stvori taskove
-        //Postavljanje određenih postavki:
-        uint8_t checksum = ((uint16_t) (0x53 + 0x59 + 0x08 + 0x00 + 0x00 + 0x01 + 0x00) & 0xFF);
-        const uint8_t msg0[10] = {0x53, 0x59, 0x08, 0x00, 0x00, 0x01, 0x00, checksum, 0x54, 0x43};
-        uart_write_bytes(UART_NUM_2, msg0, sizeof(uint8_t) * 10);
-        printf("Poslani bajtovi za postavljanje Standard Mode!\n");
+    AppSensorStatus status;
+    int inquiries_sent = 0;
+    int reports_to_wait_standard = 5;
+    int reports_to_wait_uof = 5;
 
-        checksum = ((uint16_t) (0x53 + 0x59 + 0x80 + 0x0A + 0x00 + 0x01 + 0x00) & 0xFF);
-        const uint8_t msg1[10] = {0x53, 0x59, 0x80, 0x0A, 0x00, 0x01, 0x00, checksum, 0x54, 0x43};
-        uart_write_bytes(UART_NUM_2, msg1, sizeof(uint8_t) * 10);
-        printf("Poslani bajtovi za postavljanje Time for entering no person state setting!\n");
-
-        xTaskCreate(uart_parser, "uart_parser_task", 7000, NULL, 5, NULL);
-        xTaskCreate(frame_reader, "frame_reader_task", 7000, NULL, 5, NULL);
-        xTaskCreate(check_mmwave, "checking_mmwave_task", 4000, NULL, 10, NULL);
-    } else {
-        printf("HALT!");
+    if((status = mmwave_init()) != APP_SENSOR_OK) {
+        printf("Neuspjesna inicijalizacija sustava!\n");
+        return 0;
     }
+    printf("Inicijalizacija sustava uspjesna!\n");
+    if((status = mmwave_start()) != APP_SENSOR_OK) {
+        printf("Neuspjesno pokretanje sustava!\n");
+        return 0;
+    }
+    printf("Pokretanje sustava uspjesno!\n");
+
+    printf("Registracija funkcije koju sustav zove kod javljanja eventa.\n");
+    registrate_onEvent_function(fun1);
+
+    printf("Postavljanje scene i sensitivity (scene = Living room) (sensitivity = 3).\n");
+
+    app_inquiry_scene_settings_set(LIVING_ROOM);
+    app_inquiry_sensitivity_settings_set(SENSITIVITY_3);
+    inquiries_sent++;
+    inquiries_sent++;
+
+    printf("Prvo isprobavamo rad u Standard mode.\n");
+    app_inquiry_uof_output_switch_set(TURN_OFF);
+    inquiries_sent++;
+
+    printf("Postavljamo jos i time for entering no person state na 10s.\n");
+    app_inquiry_time_for_no_person_set(TEN_SEC);
+    inquiries_sent++;
+
+    printf("Saljemo inquiry za presence.\n");
+    app_inquiry_presence();
+    inquiries_sent++;
+
+    printf("Saljemo inquiry za proximity.\n");
+    app_inquiry_proximity();
+    inquiries_sent++;
+
+    printf("Saljemo HEARTBEAT.\n");
+    app_inquiry_heartbeat();
+    inquiries_sent++;
+
+    while(reports_to_wait_standard > 0 || inquiries_sent > 0) {
+        //ovdje ćemo pollati iz queue dok god čekamo 5 reportova i odgovore na naše inquiries
+        analise_event(&reports_to_wait_standard, &inquiries_sent);
+    }
+
+    printf("Sada cemo se prebaciti u Underlying Open Function.\n");
+    app_inquiry_uof_output_switch_set(TURN_ON);
+    inquiries_sent++;
+
+    printf("Saljemo inquiry za existence energy.\n");
+    app_inquiry_existence_energy();
+    inquiries_sent++;
+
+    printf("Saljemo inquiry za static distance.\n");
+    app_inquiry_static_distance();
+    inquiries_sent++;
+
+    while(reports_to_wait_uof > 0 || inquiries_sent > 0) {
+        //ovdje ćemo pollati iz queue dok god čekamo 5 reportova i odgovore na naše inquiries
+        analise_event(&reports_to_wait_uof, &inquiries_sent);
+    }
+
+    if((status = mmwave_stop()) != APP_SENSOR_OK) {
+        printf("Neuspjesno zaustavljanje sustava!\n");
+        return 0;
+    }
+    printf("Zaustavljanje sustava uspjesno!\n");
+
+    printf("-------- ZAVRSETAK testa --------\n\n");
+
 }

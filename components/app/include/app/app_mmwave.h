@@ -49,6 +49,14 @@ AppSensorStatus mmwave_start(void);
 AppSensorStatus mmwave_stop(void);
 
 /**
+ * @brief Registrira pokazivač na funkciju koja se zove kad se dogodi event (report/response).
+ * 
+ * @param fun Pokazivač na funkciju koja se zove preko callbacka
+ * @return Status operacije
+ */
+AppSensorStatus registrate_onEvent_function(MMwaveEventCallback fun);
+
+/**
  * @brief Omogućava dohvaćanje (polling) eventa (reporta/responsa) iz mmWave senzora.
  * 
  * Wrapper funkcija koja dohvaća event iz aplikacijskog sloja.
