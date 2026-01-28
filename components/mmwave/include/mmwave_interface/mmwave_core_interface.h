@@ -26,36 +26,7 @@
 #include "stdio.h"
 #include "stdint.h"
 #include "stdbool.h"
-#include "mmwave.h"
-
-/**
- * @struct mmWaveFrame
- * @brief Struktura koja predstavlja cijeli mmWave frame.
- * 
- * Koristi se kod TX taska.
- * 
- */
-typedef struct {
-    uint8_t* frame; /**< Pokazivač na cijeli frame */
-    size_t frame_len; /**< Duljina frame-a u bajtovima */
-} mmWaveFrame;
-
-/**
- * @struct mmWaveFrameData
- * @brief Struktura koja se sastoji od samo semantički korisnih podataka frame-a.
- * 
- * Semantički korisni podatci su oni koje aplication sloj koristi:
- * -data[0] = control word
- * -data[1] = command word
- * -data[2, ...] = payload
- * -data_len = payload_len + 2
- * 
- */
-typedef struct
-{
-    uint8_t* data; /**< Pokazivač na semantički korisne podatke frame-a */
-    size_t data_len; /**< Duljina semantički korisnih podataka (ctrl_w + cmd_w + payload) */
-} mmWaveFrameData;
+#include "mmwave_interface/mmwave_core_types.h"
 
 
 /**
@@ -71,7 +42,7 @@ typedef struct
  * @return false ako podatci nisu uspješno spremljeni
  * 
  */
-typedef bool (*mmWave_saveFrame)(const mmWaveFrameData* frame_data);
+typedef bool (*mmWave_saveFrame)(const mmWaveFrameSemanticData* frame_data);
 
 /**
  * @brief Callback za alokaciju memorije.
@@ -128,7 +99,8 @@ typedef mmwave_frame_status_t (*mmWave_parse_data)(const uint8_t* data, size_t d
  * @return Pokazivač na strukturu kreiranog frame-a ili NULL
  * 
  */
-typedef mmWaveFrame* (*mmWave_build_frame)(const uint8_t* payload, size_t payload_len, const uint8_t ctrl_w, const uint8_t cmd_w);
+typedef bool (*mmWave_build_frame)(mmWaveFrameForTX* out, const uint8_t* payload, size_t payload_len,
+    const uint8_t ctrl_w, const uint8_t cmd_w);
 
 /**
  * @brief Public API callback mmWave core sloja za inicijalizaciju core sloja prije startanja.
@@ -156,30 +128,6 @@ typedef mmwave_status_t (*mmWave_init)(void);
 typedef mmwave_status_t (*mmWave_stop)(void);
 
 /**
- * @brief Povezuje HAL funkcije s callbackovima koje mmWave core poziva.
- * 
- * Poziva HAL sloj kod inicijalizacije kako bi mmWave core sloju pružio prave pokazivače na funkcije.
- * 
- * @param cb Struktura s callbackovima za HAL sloj
- */
-void mmwave_core_bind_callbacks(const mmWave_core_callback* cb);
-
-/**
- * @struct mmWave_core_interface
- * @brief Struktura koja sadrži API funkcije mmWave core sloja u obliku callbackova.
- * 
- * HAL sloj koristi ovu strukturu za pozivanje funkcija mmWave core sloja.
- * 
- */
-typedef struct
-{
-    mmWave_parse_data mmwave_parse_data;
-    mmWave_build_frame mmwave_build_frame;
-    mmWave_init mmwave_init;
-    mmWave_stop mmwave_stop;
-} mmWave_core_interface;
-
-/**
  * @struct mmWave_core_callback
  * @brief Strukutra callbackova koje implementira HAL sloj.
  * 
@@ -194,3 +142,27 @@ typedef struct
     mmWave_alloc_memory alloc_mem;
     mmWave_free_alloc_memory free_mem;
 } mmWave_core_callback;
+
+/**
+ * @struct mmWave_core_interface
+ * @brief Struktura koja sadrži API funkcije mmWave core sloja u obliku callbackova.
+ * 
+ * HAL sloj koristi ovu strukturu za pozivanje funkcija mmWave core sloja.
+ * 
+ */
+typedef struct
+{
+    mmWave_parse_data mmwave_parse_data;
+    mmWave_build_frame mmwave_build_frame;
+    mmWave_init mmwave_core_init;
+    mmWave_stop mmwave_core_stop;
+} mmWave_core_interface;
+
+/**
+ * @brief Povezuje HAL funkcije s callbackovima koje mmWave core poziva.
+ * 
+ * Poziva HAL sloj kod inicijalizacije kako bi mmWave core sloju pružio prave pokazivače na funkcije.
+ * 
+ * @param cb Struktura s callbackovima za HAL sloj
+ */
+void mmwave_core_bind_callbacks(const mmWave_core_callback* cb);

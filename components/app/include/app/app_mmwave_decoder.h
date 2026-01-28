@@ -23,61 +23,8 @@
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
-#include "app_mmwave_constants.h"
-#include "app_mmwave_manager.h"
-
-/**
- * @struct uof_report
- * @brief Underlying Open Function (UOF) report.
- * 
- */
-typedef struct
-{
-    int existence_energy; /**< Existence energy */
-    float static_distance; /**< Static distance */
-    int motion_energy; /**< Motion energy */
-    float motion_distance; /**< Motion distance */
-    float motion_speed; /**< Motion speed */
-} uof_report;
-
-/**
- * @struct DecodedReport
- * @brief Dekodirani report senzora.
- * 
- * Samo onaj flag koji predstavlja vrstu podatka koju report nosi je postavljen na true,
- * svi ostali su na false.
- * 
- * @note Sukladno postavljenom flagu, očekuje se da aplikacija čita tu vrstu podatka.
- * 
- */
-typedef struct {
-    bool has_init_completed_info; /**< Flag o init completed info */
-    bool has_presence_info; /**< Flag o presence info */
-    bool has_motion_info; /**< Flag o motion info */
-    bool has_bmp_info; /**< Flag o BodyMotionParameter (BMP) info */
-    bool has_proximity_info; /**< Flag o proximity info */
-    bool has_uof_report; /**< Flag o UOF report */
-
-    bool init_completed_info; /**< Init completed info podatak */
-    PresenceInfo presence_info; /**< Presence info podatak */
-    MotionInfo motion_info; /**< Motion info podatak */
-    int bmp_info; /**< BodyMotionParameter (BMP) podatak */
-    ProximityInfo proximity_info; /**< Proximity info podatak */
-    uof_report uof_rep; /**< UOF report podatak */
-} DecodedReport;
-
-/**
- * @struct DecodedResponse
- * @brief Dekodirani odgovor na prethodni upit.
- * 
- * Koristi se za odgovore senzora na konfiguracijske i informacijske upite.
- * 
- */
-typedef struct {
-    AppInquiryType type; /**< Tip odgovora */
-    void* data; /**< Pokazivač na podatke odgovora */
-    size_t data_l; /**< Duljina podataka odgovora */
-} DecodedResponse;
+#include "app/app_mmwave_constants.h"
+#include "app/app_types.h"
 
 /**
  * @struct AppDecorerContext

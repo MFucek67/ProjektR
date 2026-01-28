@@ -28,80 +28,10 @@
 #pragma once
 #include "stdio.h"
 #include "stdint.h"
-#include "board.h"
-#include "mmwave_interface/mmwave.h"
 #include "mmwave_interface/mmwave_core_interface.h"
-#include "platform/platform.h"
+#include "mmwave_interface/mmwave_core_types.h"
+#include "hal_mmwave_types.h"
 
-/**
- * @brief Maksimalan broj frame-ova u internom queue-u.
- * 
- */
-#define MAX_FRAMES_IN_QUEUE 20
-
-/**
- * @typedef HalEventHandle_t
- * @brief Tip handle-a (pokazivača) za HAL evente.
- * 
- * HAL interno koristi platform evente, ali ima svoje tipove handlera
- * zbog čitljivosti i apstrakcije.
- * 
- */
-typedef PlatformEventHandle_t HalEventHandle_t;
-
-/**
- * @typedef hal_mmwave_config
- * @brief Konfiguracijska struktura za za mmWave HAL modul.
- * 
- * Struktura sadrži sve važne parametre potrebne za UART komunikaciju i
- * interni event sustav.
- * 
- * HAL ovu strukutru prilagođava i prosljeđuje platform sloju.
- * 
- */
-typedef struct {
-    BoardUartId id; /**< logički UART id */
-    uint32_t baudrate; /**< Baud rate UART-a */
-    uint8_t data_bits; /**< Broj podatkovnih bitova */
-    uint8_t parity; /**< Paritet */
-    uint8_t stop_bits; /**< Broj stop bitova */
-    size_t rx_buff_size; /**< Veličina RX buffera */
-    size_t tx_buff_size; /**< Veličina TX buffera */
-    size_t rx_thresh; /**< RX threshold za generiranje UART_DATA eventa */
-    size_t event_queue_len; /**< Veličina internog event queue */
-} hal_mmwave_config;
-
-/**
- * @enum HalMmwaveStatus
- * @brief Povratni statusi operacija nad HAL-om.
- * 
- */
-typedef enum {
-    HAL_MMWAVE_OK, /**< Operacija uspješna */
-    HAL_MMWAVE_INVALID_STATE, /**< Funkcija pozvana iz krivog stanja */
-    HAL_ERROR, /**< Operacija neuspješna */
-    HAL_MMWAVE_TIMEOUT /**< Isteklo je vrijeme čekanja */
-} HalMmwaveStatus;
-
-/**
- * @enum HalMmwaveState
- * @brief Interna stanja mmWave HAL modula.
- * 
- */
-typedef enum {
-    HAL_MMWAVE_UNINIT, /**< Modul nije inicijaliziran */
-    HAL_MMWAVE_INIT, /**< Modul je inicijaliziran */
-    HAL_MMWAVE_RUNNING, /**< Modul je započeo s radom */
-    HAL_MMWAVE_STOPPED, /**< Modul je prestao s radom */
-    HAL_MMWAVE_ERROR /**< Greška u radu modula */
-} HalMmwaveState;
-
-/**
- * @typedef FrameData_t
- * @brief Tip podatka za pohranu mmWave frame-ova u queue.
- * 
- */
-typedef QueueElement_t FrameData_t;
 
 /**
  * @brief Inicijalizira mmWave HAL modul.
@@ -187,7 +117,7 @@ HalMmwaveStatus hal_mmwave_send_frame(const uint8_t* data, size_t data_len, cons
  * @return HAL_MMWAVE_ERROR ako je dohvaćanje neuspješno
  * @return HAL_MMWAVE_INVALID_STATE ako je modul u stanju iz kojeg se ne smije izvršiti dohvaćanje
  */
-HalMmwaveStatus hal_mmwave_get_frame_from_queue(QueueElement_t* buffer, uint32_t timeout_in_ms);
+HalMmwaveStatus hal_mmwave_get_frame_from_queue(FrameData_t* buffer, uint32_t timeout_in_ms);
 
 /**
  * @brief Oslobađa memoriju zauzetu mmWave frame-om.
@@ -196,4 +126,12 @@ HalMmwaveStatus hal_mmwave_get_frame_from_queue(QueueElement_t* buffer, uint32_t
  * 
  * @param frame_data Pokazivač na strukturu frame-a
  */
-void hal_mmwave_release_frame_memory(mmWaveFrameData* frame_data);
+void hal_mmwave_release_frame_memory(FrameData_t* frame_data);
+
+/**
+ * @brief Prazni HAL-ov frame queue.
+ * 
+ * Funkcija na poziv u potpunosti prazni HAL-ov queue u kojem čuva parsirane frame-ove.
+ * 
+ */
+void hal_mmwave_flush_frames(void);

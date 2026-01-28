@@ -17,7 +17,7 @@
  */
 
 #pragma once
-#include "HAL/hal_mmwave.h"
+#include "my_hal/hal_mmwave.h"
 #include "mmwave_interface/mmwave_core_interface.h"
 
 /**

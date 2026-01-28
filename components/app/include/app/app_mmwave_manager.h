@@ -22,143 +22,10 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include "app_mmwave_decoder.h"
-#include "app_mmwave_constants.h"
-#include "app_mmwave.h"
-
-/**
- * @brief Veličina queue-a za evente aplikacijskog sloja.
- * 
- */
-#define APP_EVENT_QUEUE_LEN 20
-
-/**
- * @enum AppSensorStatus
- * @brief Statusi rada mmWave modula na aplikacijskom sloju.
- * 
- */
-typedef enum {
-    APP_SENSOR_OK, /**< Operacija uspješna */
-    APP_SENSOR_ERROR, /**< Operacija neuspješna */
-    APP_SENSOR_INVALID_STATE, /**< Modul se nalazi u pogrešnom stanju */
-    APP_SENSOR_BUSY, /**< Sustav zauzet */
-    APP_SENSOR_BAD_ARGUMENT, /**< Neispravan argument funkcije */
-    APP_SENSOR_BAD_MODE /**< Neispravan mode */
-} AppSensorStatus;
-
-/**
- * @enum AppSensorState
- * @brief Stanje u kojem se nalazi mmWave sustav na aplikacijskom sloju.
- * 
- */
-typedef enum {
-    APP_SENSOR_UNINIT, /**< Sustav neinicijaliziran */
-    APP_SENSOR_INIT, /**< Sustav inicijaliziran */
-    APP_SENSOR_RUNNING, /**< Sustav radi */
-    APP_SENSOR_STOPPED /**< Sustav je stao s radom */
-} AppSensorState;
-
-/**
- * @enum SensorOperationMode
- * @brief Načini rada (mode) sustava.
- * 
- */
-typedef enum {
-    SENSOR_MODE_STANDARD, /**< Standardni način rada */
-    SENSOR_MODE_UNDERLYING_OPEN /**< Napredni način rada */
-} SensorOperationMode;
-
-/**
- * @enum AppInquiryType
- * @brief Tipovi aplikacijskih upita na sustav.
- * 
- * Vrijednosti se koriste za identifikaciju response-a koje aplikacija očekuje
- * od mmWave modula.
- * 
- */
-typedef enum {
-    NO_TYPE,
-    HEARTBEAT,
-    MODULE_RESET,
-    PRODUCT_MODEL,
-    PRODUCT_ID,
-    INIT_STATUS,
-    HARDWARE_MODEL,
-    FIRMWARE_VERSION,
-    SCENE_SETTINGS,
-    SCENE_SETTINGS_I,
-    SENSITIVITY,
-    SENSITIVITY_I,
-    PRESENCE,
-    MOTION,
-    BMP,
-    TIME_FOR_NO_PERSON,
-    TIME_FOR_NO_PERSON_I,
-    PROXIMITY,
-    OUTPUT_SWITCH,
-    OUTPUT_SWITCH_I,
-    EXISTENCE_ENERGY,
-    MOTION_ENERGY,
-    STATIC_DISTANCE,
-    MOTION_DISTANCE,
-    MOTION_SPEED,
-    CUSTOM_MODE,
-    CUSTOM_MODE_END,
-    CUSTOM_MODE_I,
-    EXISTENCE_JUDGMENT_THRESH,
-    MOTION_TRIGGER_THRESH,
-    EXISTENCE_PERCEPTION_BOUND,
-    MOTION_TRIGGER_BOUND,
-    MOTION_TRIGGER_TIME,
-    MOTION_TO_STILL_TIME,
-    CM_TIME_FOR_NO_PERSON,
-    EXISTENCE_JUDGMENT_THRESH_I,
-    MOTION_TRIGGER_THRESH_I,
-    EXISTENCE_PERCEPTION_BOUND_I,
-    MOTION_TRIGGER_BOUND_I,
-    MOTION_TRIGGER_TIME_I,
-    MOTION_TO_STILL_TIME_I,
-    CM_TIME_FOR_NO_PERSON_I
-} AppInquiryType;
-
-/**
- * @enum MmwaveEventType
- * @brief Vrsta eventa.
- * 
- * Event queue na aplikacijskom sloju može primiti ili response ili report tip. Ovaj enum
- * definira ta dva tipa. 
- * 
- */
-typedef enum {
-    MMWAVE_EVENT_REPORT, /**< Report tip eventa */
-    MMWAVE_EVENT_RESPONSE /**< Response tip eventa */
-} MmwaveEventType;
-
-/**
- * @struct MmwaveEvent
- * @brief Event na aplication sloju.
- * 
- * Ova struktura predstavlja event koji aplikacijski sloj šalje kao rezultat response-a ili reporta.
- * 
- * @note U jednom eventu može biti samo jedna vrsta eventa - dakle, ili report ili response.
- * 
- */
-typedef struct {
-    MmwaveEventType type; /**< Vrsta eventa */
-    union
-    {
-        DecodedReport report; /**< Dekodirani report */
-        DecodedResponse response; /**< Dekodirani response */
-    };
-} MmwaveEvent;
-
-/**
- * @typedef MMwaveEventCallback
- * @brief Callback funkcija za notifikacije vanjskog programa o novim eventima.
- * 
- * @param event Pokazivač na MmwaveEvent strukturu
- */
-typedef void (*MMwaveEventCallback)(MmwaveEvent* event);
+#include "app/app_mmwave_decoder.h"
+#include "app/app_mmwave_constants.h"
+#include "app/app_mmwave.h"
+#include "app/app_types.h"
 
 /**
  * @brief Pokreće sustav.
@@ -191,6 +58,16 @@ AppSensorStatus app_init_sys(void);
 AppSensorStatus app_stop_sys(void);
 
 /**
+ * @brief Deinicijalizira sustav.
+ * 
+ * Funkcija briše HAL konfiguraciju i mmWave core interface te kontekst s callbackovima koje
+ * koristi aplication decoder. Resetira interne varijable i postavlja sustav u neinicijalizirano stanje.
+ * 
+ * @return Status operacije nad modulom
+ */
+AppSensorStatus app_deinit_sys(void);
+
+/**
  * @brief Vraća trenutni način rada (mode) sustava.
  * 
  * @return Trenutni način rada (mode) sustava
@@ -213,19 +90,31 @@ AppSensorStatus app_set_mode(SensorOperationMode mode);
  * 
  * @param cb Callback vanjske funkcije
  */
-void mmwave_register_event_callback(MMwaveEventCallback cb);
+void mmwave_register_event_callback(MMwaveResponseCallback res_cb, MMwaveReportCallback rep_cb);
 
 /**
- * @brief Dohvaća response/report event iz queue-a.
+ * @brief Dohvaća response event iz queue-a.
  * 
- * Kopira event u poslanu strukturu i oslobađa memoriju koju je event zauzimao.
+ * Kopira response u poslanu strukturu i oslobađa memoriju koju je on zauzimao.
  * 
- * @param out_event Pokazivač na strukturu aplikacijskog eventa (report/response)
+ * @param out_event Pokazivač na strukturu aplikacijskog response
  * @param timeout_ms Vrijeme čekanja u ms
- * @return true ako je vraćen event
- * @return false ako nije vraćen event
+ * @return true ako je vraćen response
+ * @return false ako nije vraćen response
  */
-bool app_get_event(MmwaveEvent* out_event, uint32_t timeout_ms);
+bool app_get_response(DecodedResponse* out_event, uint32_t timeout_ms);
+
+/**
+ * @brief Dohvaća report event iz queue-a.
+ * 
+ * Kopira report u poslanu strukturu i oslobađa memoriju koju je on zauzimao.
+ * 
+ * @param out_event Pokazivač na strukturu aplikacijskog reporta
+ * @param timeout_ms Vrijeme čekanja u ms
+ * @return true ako je vraćen report
+ * @return false ako nije vraćen report
+ */
+bool app_get_report(DecodedReport* out_report, uint32_t timeout_ms);
 
 /**
  * @brief Funkcija koja se poziva kod response eventa.

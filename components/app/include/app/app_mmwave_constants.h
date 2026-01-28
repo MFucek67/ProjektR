@@ -266,7 +266,7 @@ typedef enum {
  * 
  */
 typedef enum {
-    NONE = 0x00, /**< No time for no person */
+    TIME_NONE = 0x00, /**< No time for no person */
     TEN_SEC = 0x01, /**< 10 sec */
     THIRTY_SEC = 0x02, /**< 30 sec */
     ONE_MIN = 0x03, /**< 1 min */
@@ -530,7 +530,7 @@ typedef enum {
  * 
  */
 typedef enum {
-    NONE = 0x00, /**< None */
+    MOTION_NONE = 0x00, /**< None */
     MOTIONLESS = 0x01, /**< Motionless */
     ACTIVE = 0x02 /**< Active */
 } MotionInfo;
@@ -552,16 +552,16 @@ typedef enum {
  * 
  */
 typedef enum {
-    HALF_M = 0x01, /**< 0.5 m */
-    ONE_M = 0x02, /**< 1 m */
-    ONE_AND_HALF_M = 0x03, /**< 1.5 m */
-    TWO_M = 0x04, /**< 2 m */
-    TWO_AND_HALF_M = 0x05, /**< 2.5 m */
-    THREE_M = 0x06, /**< 3 m */
-    THREE_AND_HALF_M = 0x07, /**< 3.5 m */
-    FOUR_M = 0x08, /**< 4 m */
-    FOUR_AND_HALF_M = 0x09, /**< 4.5 m */
-    FIVE_M = 0x0a /**< 5 m */
+    EP_HALF_M = 0x01, /**< 0.5 m */
+    EP_ONE_M = 0x02, /**< 1 m */
+    EP_ONE_AND_HALF_M = 0x03, /**< 1.5 m */
+    EP_TWO_M = 0x04, /**< 2 m */
+    EP_TWO_AND_HALF_M = 0x05, /**< 2.5 m */
+    EP_THREE_M = 0x06, /**< 3 m */
+    EP_THREE_AND_HALF_M = 0x07, /**< 3.5 m */
+    EP_FOUR_M = 0x08, /**< 4 m */
+    EP_FOUR_AND_HALF_M = 0x09, /**< 4.5 m */
+    EP_FIVE_M = 0x0a /**< 5 m */
 } ExistencePerceptionBound;
 
 /**
@@ -570,14 +570,14 @@ typedef enum {
  * 
  */
 typedef enum {
-    HALF_M = 0x01, /**< 0.5 m */
-    ONE_M = 0x02, /**< 1 m */
-    ONE_AND_HALF_M = 0x03, /**< 1.5 m */
-    TWO_M = 0x04, /**< 2 m */
-    TWO_AND_HALF_M = 0x05, /**< 2.5 m */
-    THREE_M = 0x06, /**< 3 m */
-    THREE_AND_HALF_M = 0x07, /**< 3.5 m */
-    FOUR_M = 0x08, /**< 4 m */
-    FOUR_AND_HALF_M = 0x09, /**< 4.5 m */
-    FIVE_M = 0x0a /**< 5 m */
+    MT_HALF_M = 0x01, /**< 0.5 m */
+    MT_ONE_M = 0x02, /**< 1 m */
+    MT_ONE_AND_HALF_M = 0x03, /**< 1.5 m */
+    MT_TWO_M = 0x04, /**< 2 m */
+    MT_TWO_AND_HALF_M = 0x05, /**< 2.5 m */
+    MT_THREE_M = 0x06, /**< 3 m */
+    MT_THREE_AND_HALF_M = 0x07, /**< 3.5 m */
+    MT_FOUR_M = 0x08, /**< 4 m */
+    MT_FOUR_AND_HALF_M = 0x09, /**< 4.5 m */
+    MT_FIVE_M = 0x0a /**< 5 m */
 } MotionTriggerBound;

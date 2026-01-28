@@ -48,8 +48,8 @@ static hal_mmwave_config hal_cfg = {
  */
 static mmWave_core_interface mmwave_int = {
     .mmwave_parse_data = mmwave_parse_data,
-    .mmwave_init = mmwave_init,
-    .mmwave_stop = mmwave_stop,
+    .mmwave_core_init = mmwave_core_init,
+    .mmwave_core_stop = mmwave_core_stop,
     .mmwave_build_frame = mmwave_build_frame
 };  
 

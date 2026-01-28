@@ -103,5 +103,7 @@ void platform_event_queue_delete(PlatformEventHandle_t event_queue)
 
 void platform_event_queue_reset(PlatformEventHandle_t event_queue)
 {
-    xQueueReset(event_queue);
+    if(event_queue) {
+        xQueueReset(event_queue);
+    }
 }

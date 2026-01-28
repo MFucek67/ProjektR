@@ -2,7 +2,7 @@
 #include "freertos/FreeRTOS.h"
 #include "platform/platform_memory.h"
 
-void* platform_malloc(void** mem_location, uint32_t size)
+MemoryOperationStatus platform_malloc(void** mem_location, uint32_t size)
 {
     if(size > MAX_MEMORY_SIZE) {
         return MEM_ERR_INVALID_PARAM;

@@ -26,7 +26,7 @@ typedef void (*task_function)(void*);
 
 /**
  * @typedef task_handler
- * @brief Tip pokazivač (handler) na task.
+ * @brief Tip handler na task.
  * 
  */
 typedef void* task_handler;

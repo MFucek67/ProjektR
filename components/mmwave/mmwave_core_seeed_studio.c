@@ -32,7 +32,6 @@ static int parsing_buff_current_size = 0;
 static int built_frame_len = 0; //broj bajtova u pomoćnom bufferu koji su izgrađeni (u okviru koji trenutno gradimo)
 static bool head1 = false; //head bajt 1 pronađen (0x53)
 static bool head2 = false; //head bajt 2 pronađen (0x59)
-static int fixed_elements = 0; //broj elemenata prije payloada
 static int payload_len = 0; //duljina payloada
 
 static uint8_t* data_saving_buff = NULL; //interni buffer za spremanje podataka koje treba parsirati
@@ -86,10 +85,10 @@ static uint8_t* extend_building_space(size_t size)
  */
 static void restart_parser(void)
 {
+    printf("[CORE] restart_parser (big_frames=%d)\n", big_frames_count); //KASNIJE MAKNUTI
     head1 = false;
     head2 = false;
     built_frame_len = 0;
-    fixed_elements = 0;
     payload_len = 0;
     
     //imamo prag od 3 velika, ako ih dođe 3 ili više, ostavljamo veličinu na najvećoj prošloj
@@ -107,7 +106,7 @@ static void restart_parser(void)
     }
 }
 
-mmwave_status_t mmwave_init(void)
+mmwave_status_t mmwave_core_init(void)
 {
     if(!hal_functions) {
         return S_MMWAVE_ERR_TIMEOUT;
@@ -120,7 +119,7 @@ mmwave_status_t mmwave_init(void)
     return S_MMWAVE_OK;
 }
 
-mmwave_status_t mmwave_stop(void)
+mmwave_status_t mmwave_core_stop(void)
 {
     if(!hal_functions) {
         return S_MMWAVE_ERR_TIMEOUT;
@@ -131,7 +130,6 @@ mmwave_status_t mmwave_stop(void)
     parsing_buff_current_size = 0;
     head1 = false;
     head2 = false;
-    fixed_elements = 0;
     built_frame_len = 0;
     payload_len = 0;
     hal_functions->free_mem(data_saving_buff, data_saving_buff_size);
@@ -161,9 +159,13 @@ static mmwave_frame_status_t process_data(uint8_t* parsing_buff, size_t len)
     status_of_operation = MMWAVE_NO_FRAMES;
     for(int i = 0; i < len; i++) {
         uint8_t b = parsing_buff[i];
+        printf("[CORE] byte[%d]=0x%02X h1=%d h2=%d built=%d\n",
+                i, b, head1, head2, built_frame_len); //KASNIJE MAKNUTI OVO
+
         if(!head1) {
             //nismo još pronašli 0x53
             if(parsing_buff[i] == HEADER1) {
+                printf("[CORE] HEADER1 found at index %d\n", i); //KASNIJE MAKNUTI
                 //HEAD1 nađen -> okvir započet
                 if(finished_frames == 0) { //ako nismo našli niti jedan frame do kraja, ali imamo dio jednog
                     status_of_operation = MMWAVE_UNFINISHED_FRAME;
@@ -180,6 +182,7 @@ static mmwave_frame_status_t process_data(uint8_t* parsing_buff, size_t len)
         } else if(head1 && !head2) {
             //imamo 0x53, ali nemamo 0x59
             if(parsing_buff[i] == HEADER2) {
+                printf("[CORE] HEADER2 found\n"); //KASNIJE MAKNUTI
                 //HEAD2 nađen
                 *(building_buffer + 1) = b;
                 head2 = true;
@@ -197,12 +200,13 @@ static mmwave_frame_status_t process_data(uint8_t* parsing_buff, size_t len)
             *(building_buffer + built_frame_len) = b;
             built_frame_len++;
 
-            //prvo uzimamo ControlWord, CommandWord i LengthIdentification (ukupno 4 bajta):
-            if(fixed_elements < 4) {
-                fixed_elements++;
-            } else if(fixed_elements == 4) {
+            //prvo uzimamo ControlWord, CommandWord i LengthIdentification (ukupno 6 bajta u building_buffer-u):
+            if(built_frame_len < 6) {
+                continue;
+            } else if(built_frame_len == 6) {
                 //kada smo ih uzeli, čitamo duljinu payloada
                 payload_len = ((uint16_t)(*(building_buffer + 4) << 8) | (uint16_t)*(building_buffer + 5));
+                printf("[CORE] payload_len = %d\n", payload_len); //KASNIJE MAKNUTI
                 //povećavamo buffer ako trebamo više od 20 bajtova za okvir (tj. >11 bajtova za payload)
                 if((payload_len + 9) >= parsing_buff_current_size) {
                     big_frames_count++;
@@ -210,6 +214,7 @@ static mmwave_frame_status_t process_data(uint8_t* parsing_buff, size_t len)
                     big_frames_count = 0;
                 }
                 if(payload_len > (parsing_buff_current_size - 9)) {
+                    printf("[CORE] need bigger buffer: %d bytes\n", payload_len + 9); //KASNIJE MAKNUTI
                     building_buffer = extend_building_space(payload_len + 9);
                     if(!building_buffer) {
                         //preveliki payload ili nemamo dovoljno memorije - dobili smo NULL
@@ -222,19 +227,19 @@ static mmwave_frame_status_t process_data(uint8_t* parsing_buff, size_t len)
                         a mogu se nalaziti iza ovoga koji odbacujemo*/
                     }
                 }
-                fixed_elements++;
             } else {
                 //tu čitamo ostale bajtove (Payload, Checksum i Tail):
                 if(built_frame_len == (2 + 4 + payload_len + 1 + 2)) {
+                    printf("[CORE] full frame received, checking tail & checksum\n"); //KASNIJE MAKNUTI
                 //ako smo ovdje, pročitali smo cijeli okvir - provjera taila i checksuma
                     if(*(building_buffer + 2 + 4 + payload_len + 1) == FOOTER1 
                         && *(building_buffer + 2 + 4 + payload_len + 2) == FOOTER2) {
                         //TAIL dobar -> još ispitujemo checksum
                         uint16_t sum = 0;
-                        for(int j = 0; j < (2 + 4 + payload_len - 1); j++) {
+                        for(int j = 0; j < (2 + 4 + payload_len); j++) {
                             sum += *(building_buffer + j);
                         }
-                        if(*(building_buffer + 2 + 4 + payload_len - 1) == ((uint8_t) (sum & 0xFF))) {
+                        if(*(building_buffer + 2 + 4 + payload_len) == ((uint8_t) (sum & 0xFF))) {
                             //checksum je dobar
                             //alociramo memoriju za payload + ctrl_w + cmd_w
                             uint8_t* frame_data = hal_functions->alloc_mem(2 + payload_len);
@@ -248,12 +253,14 @@ static mmwave_frame_status_t process_data(uint8_t* parsing_buff, size_t len)
                                 frame_data[0] = building_buffer[2];
                                 frame_data[1] = building_buffer[3];
                                 memcpy(&frame_data[2], &building_buffer[6], payload_len);
-                                mmWaveFrameData frame_data_obj = {
+                                mmWaveFrameSemanticData frame_data_obj = {
                                     .data = frame_data,
-                                    .data_len = payload_len + 2
+                                    .len = payload_len + 2
                                 };
 
                                 if(hal_functions->mmwave_save_frame(&frame_data_obj)) {
+                                    printf("[CORE] frame saved to HAL queue (len=%d)\n",
+                                        frame_data_obj.len); //KASNIJE MAKNUTI
                                     status_of_operation = MMWAVE_FRAME_OK;
                                     finished_frames++;
                                 } else {
@@ -268,6 +275,9 @@ static mmwave_frame_status_t process_data(uint8_t* parsing_buff, size_t len)
 
                             //nastavljamo parsing novog okvira (ili dijela)
                         } else {
+                            printf("[CORE] checksum FAIL calc=0x%02X frame=0x%02X\n",
+                                (uint8_t)(sum & 0xFF),
+                                *(building_buffer + 2 + 4 + payload_len)); //KASNIJE MAKNUTI
                             //checksum nije dobar -> opet traži okvir (ponovno HEAD)
                             restart_parser();
 
@@ -297,6 +307,7 @@ static mmwave_frame_status_t process_data(uint8_t* parsing_buff, size_t len)
  */
 mmwave_frame_status_t mmwave_parse_data(const uint8_t* data, size_t data_len)
 {
+    printf("[CORE] parse_data: len=%zu\n", data_len); //ZA MAKNUTI KASNIJE
     if(!hal_functions) {
         return S_MMWAVE_ERR_TIMEOUT;
     }
@@ -314,15 +325,16 @@ mmwave_frame_status_t mmwave_parse_data(const uint8_t* data, size_t data_len)
     return process_data(data_saving_buff, data_len);
 }
 
-mmWaveFrame* mmwave_build_frame(const uint8_t* payload, size_t payload_len, const uint8_t ctrl_w, const uint8_t cmd_w)
+bool mmwave_build_frame(mmWaveFrameForTX* out,
+    const uint8_t* payload, size_t payload_len, const uint8_t ctrl_w, const uint8_t cmd_w)
 {
-    if(!hal_functions) {
-        return NULL;
+    if(!out || !hal_functions) {
+        return false;
     }
 
     uint8_t* frame_data = hal_functions->alloc_mem(payload_len + 9);
     if(!frame_data) {
-        return NULL;
+        return false;
     }
     frame_data[0] = HEADER1;
     frame_data[1] = HEADER2;
@@ -345,13 +357,7 @@ mmWaveFrame* mmwave_build_frame(const uint8_t* payload, size_t payload_len, cons
 
     frame_data[7 + payload_len] = FOOTER1;
     frame_data[8 + payload_len] = FOOTER2;
-
-    mmWaveFrame* new_frame = hal_functions->alloc_mem(sizeof(mmWaveFrame));
-    if(!new_frame) {
-        hal_functions->free_mem(frame_data, payload_len + 9);
-        return NULL;
-    }
-    new_frame->frame = frame_data;
-    new_frame->frame_len = (9 + payload_len);
-    return new_frame;
+    out->data = frame_data;
+    out->len = payload_len + 9;
+    return true;
 }

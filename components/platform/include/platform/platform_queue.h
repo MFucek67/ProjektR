@@ -42,11 +42,11 @@ typedef struct {
 } QueueElement_t;
 
 /**
- * @typedef QueueHandle_t
- * @brief Pokazivač (handle) na queue.
+ * @typedef PlatformQueueHandle
+ * @brief Pokazivač (handle) na platform queue.
  * 
  */
-typedef void* QueueHandle_t;
+ typedef void* PlatformQueueHandle;
 
 /**
  * @brief Kreira queue.
@@ -55,7 +55,7 @@ typedef void* QueueHandle_t;
  * @param element_size Veličina jednog queue elementa u bajtovima
  * @return Pokazivač na queue ili NULL (kod neuspješnog stvaranja)
  */
-QueueHandle_t platform_queue_create(size_t queue_length, size_t element_size);
+PlatformQueueHandle platform_queue_create(size_t queue_length, size_t element_size);
 
 /**
  * @brief Šalje element u queue.
@@ -65,7 +65,7 @@ QueueHandle_t platform_queue_create(size_t queue_length, size_t element_size);
  * @param timeout Vrijeme čekanja u ms
  * @return Status operacije
  */
-QueueOperationStatus platform_queue_send(QueueHandle_t queue, QueueElement_t* item, uint32_t timeout_in_ms);
+QueueOperationStatus platform_queue_send(PlatformQueueHandle queue, QueueElement_t* item, uint32_t timeout_in_ms);
 
 /**
  * @brief Dohvaća element iz queue.
@@ -75,14 +75,14 @@ QueueOperationStatus platform_queue_send(QueueHandle_t queue, QueueElement_t* it
  * @param timeout_in_ms Vrijeme čekanja u ms
  * @return Status operacije
  */
-QueueOperationStatus platform_queue_get(QueueHandle_t queue, QueueElement_t* buffer, uint32_t timeout_in_ms);
+QueueOperationStatus platform_queue_get(PlatformQueueHandle queue, QueueElement_t* buffer, uint32_t timeout_in_ms);
 
 /**
  * @brief Briše queue i oslobađa resurse.
  * 
  * @param queue Pokazivač na queue
  */
-void platform_queue_delete(QueueHandle_t queue);
+void platform_queue_delete(PlatformQueueHandle queue);
 
 /**
  * @brief Vraća trenutni broj elemenata spremljenih u queue.
@@ -90,4 +90,12 @@ void platform_queue_delete(QueueHandle_t queue);
  * @param queue Pokazivač na queue
  * @return Broj elemenata u queue-u
  */
-uint32_t platform_get_num_of_queue_elements(QueueHandle_t queue);
+uint32_t platform_get_num_of_queue_elements(PlatformQueueHandle queue);
+
+/**
+ * @brief Briše sve elemente iz queue i vraća ga na početno (prazno) stanje.
+ * 
+ * @param queue Pokazivač na queue
+ * @return Status operacije
+ */
+QueueOperationStatus platform_queue_reset(PlatformQueueHandle queue);

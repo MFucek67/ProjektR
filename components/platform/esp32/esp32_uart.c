@@ -28,18 +28,18 @@
 #include "driver/uart.h"
 #include "driver/gpio.h"
 #include "freertos/queue.h"
-#include "platform_uart.h"
-#include "platform_events.h"
+#include "platform/platform_uart.h"
+#include "platform/platform_events.h"
 #include "board.h"
 #include "esp32_board.h"
 
-static bool rx_closed = false;
+static bool volatile rx_closed = false;
 static QueueHandle_t uart_event_queue = NULL;
 static QueueHandle_t platform_event_queue = NULL;
 static TaskHandle_t dispatcher_task = NULL;
 
-bool hal_dispatcher_ended_flag = false;
-bool dispatcher_stop = false;
+bool volatile hal_dispatcher_ended_flag = false;
+bool volatile dispatcher_stop = false;
 
 /**
  * @brief Mapira logički UART id na konkretne ESP32 UART pinove i UART broj.
@@ -134,7 +134,8 @@ static bool uart_event_to_platform_event(uart_event_t* uart_event, PlatformEvent
 static void dispatcher_function(void* arg)
 {
     uart_event_t uart_ev;
-    for(;;) {
+    PlatformEvent_t platform_ev;
+    /*for(;;) {
         if((uxQueueMessagesWaiting(uart_event_queue) == 0 && rx_closed) || dispatcher_stop) {
             dispatcher_task = NULL;
             hal_dispatcher_ended_flag = true;
@@ -151,7 +152,32 @@ static void dispatcher_function(void* arg)
                 xQueueSend(platform_event_queue, &platform_ev, pdMS_TO_TICKS(50));
             }
         }
+    }*/
+   for (;;) {
+        // Ako je postavljen stop flag od ISR-a ili izvana, odmah izađi
+        if ((platform_get_num_of_queue_elements(uart_event_queue) == 0) && (rx_closed || dispatcher_stop)) {
+            break;
+        }
+
+        // Blokiraj task dok ne dođe event ili dok ne trebamo stati
+        if (xQueueReceive(uart_event_queue, &uart_ev, pdMS_TO_TICKS(20)) == pdTRUE) {
+            printf("[DISPATCHER] ISR uart_event type=%d, size=%d\n", uart_ev.type, uart_ev.size); //KASNIJE MAKNI
+
+            // Pretvori UART event u platform event
+            if(uart_event_to_platform_event(&uart_ev, &platform_ev)) {
+                // Ignoriraj ghost/none evente
+                if (platform_ev.type != PLATFORM_EVENT_ERR &&
+                    platform_ev.type != PLATFORM_EVENT_NONE) {
+                    xQueueSend(platform_event_queue, &platform_ev, pdMS_TO_TICKS(20));
+                }
+            }
+        }
     }
+
+    // Čišćenje i signal da je dispatcher završio
+    hal_dispatcher_ended_flag = true;
+    dispatcher_task = NULL;
+    vTaskDelete(NULL);
 }
 
 UARTStatus platform_uart_set_rx_threshold(const BoardUartId id, uint32_t bytes) 
@@ -218,7 +244,7 @@ UARTStatus platform_uart_flush(const BoardUartId id)
     return UART_OK;
 }
 
-uint32_t platform_uart_write(const BoardUartId id, uint8_t* data, int len)
+uint32_t platform_uart_write(const BoardUartId id, uint8_t* data, size_t len)
 {
     esp32_uart_struct uart_numbers = find_uart(id);
     return uart_write_bytes(uart_numbers.uart_num, data, len);
@@ -245,12 +271,14 @@ UARTStatus platform_uart_event_converter_start(const BoardUartId id)
     }
 
     esp32_uart_struct uart_numbers = find_uart(id);
-    uart_flush(uart_numbers.uart_num);
-    xQueueReset(uart_event_queue);
     dispatcher_stop = false;
     hal_dispatcher_ended_flag = false;
 
-    if(xTaskCreate(dispatcher_function, "dispatcher", 4000, NULL, 4, &dispatcher_task) == pdPASS) {
+    uart_flush(uart_numbers.uart_num);
+    platform_queue_reset(uart_event_queue);
+    platform_event_queue_reset(platform_event_queue);
+
+    if(xTaskCreate(dispatcher_function, "dispatcher", 10000, NULL, 4, &dispatcher_task) == pdPASS) {
         return UART_OK;
     } else {
         return UART_ERROR;
@@ -265,6 +293,7 @@ UARTStatus platform_uart_event_converter_start(const BoardUartId id)
 void platform_uart_event_converter_stop(void)
 {
     if(dispatcher_task != NULL) {
+        printf("[DISPATCHER] zavrsio s radom (hal_dispatcher_ended_flag = true)");
         dispatcher_stop = true;
     }
 }
@@ -275,6 +304,7 @@ UARTStatus platform_ISR_disable(const BoardUartId id)
     if(uart_disable_rx_intr(uart_numbers.uart_num) != ESP_OK) {
         return UART_ERROR;
     }
+    printf("[UART DISABLE] stao s radom\n");
     rx_closed = true;
     return UART_OK;
 }
@@ -297,14 +327,19 @@ UARTStatus platform_uart_deinit(const BoardUartId id)
 
     esp32_uart_struct uart_numbers = find_uart(id);
 
+    //oslobađamo platform event queue - vlasništvo platform layera, on ju čisti, a potom i briše
     if(platform_event_queue != NULL) {
-        vQueueDelete(platform_event_queue);
+        platform_queue_reset(platform_event_queue);
+        platform_queue_delete(platform_event_queue);
+        printf("[UART DEINIT] platform event queue obrisan\n");
         platform_event_queue = NULL;
     }
     
+    //sad brišemo driver
     if(uart_driver_delete(uart_numbers.uart_num) != ESP_OK) {
         return UART_ERROR;
     } else {
+        printf("[UART DEINIT] ISR driver obrisan\n");
         uart_event_queue = NULL;
         return UART_OK;
     }

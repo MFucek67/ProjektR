@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "app/app_mmwave.h"
+#include "app/app_mmwave_manager.h"
 
 static uint8_t data;
 
@@ -37,18 +38,28 @@ AppSensorStatus mmwave_stop(void)
     return app_stop_sys();
 }
 
-AppSensorStatus registrate_onEvent_function(MMwaveEventCallback fun)
+AppSensorStatus mmwave_deinit(void)
 {
-    if(!fun) {
+    return app_deinit_sys();
+}
+
+AppSensorStatus registrate_onEvent_function(MMwaveResponseCallback res_fun, MMwaveReportCallback rep_fun)
+{
+    if(!rep_fun || !res_fun) {
         return APP_SENSOR_BAD_ARGUMENT;
     }
-    mmwave_register_event_callback(fun);
+    mmwave_register_event_callback(res_fun, rep_fun);
     return APP_SENSOR_OK;
 }
 
-bool mmwave_poll_event(MmwaveEvent* out, uint32_t timeout_ms)
+bool mmwave_poll_response(DecodedResponse* out, uint32_t timeout_ms)
 {
-    return app_get_event(out, timeout_ms);
+    return app_get_response(out, timeout_ms);
+}
+
+bool mmwave_poll_report(DecodedReport* out, uint32_t timeout_ms)
+{
+    return app_get_report(out, timeout_ms);
 }
 
 AppSensorStatus app_inquiry_heartbeat(void)

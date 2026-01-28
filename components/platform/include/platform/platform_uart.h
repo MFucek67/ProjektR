@@ -26,7 +26,7 @@
 #include "stdbool.h"
 #include "board.h"
 
-extern bool hal_dispatcher_ended_flag;
+extern bool volatile hal_dispatcher_ended_flag;
 
 /**
  * @enum UARTStatus
@@ -88,7 +88,7 @@ UARTStatus platform_uart_flush(const BoardUartId id);
  * @param len Duljina podataka koji se šalju
  * @return Broj stvarno poslanih podataka preko UART-a
  */
-uint32_t platform_uart_write(const BoardUartId id, uint8_t* data, int len);
+uint32_t platform_uart_write(const BoardUartId id, uint8_t* data, size_t len);
 
 /**
  * @brief Dohvaća podatke s UART-a.

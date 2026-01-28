@@ -17,7 +17,7 @@
 #include "stdio.h"
 #include "stdint.h"
 #include "stdbool.h"
-#include "platform_queue.h"
+#include "platform/platform_queue.h"
 
 /**
  * @enum EventStatus
@@ -49,7 +49,7 @@ typedef enum {
  * @brief Pokazivač (handle) na platform event queue.
  * 
  */
-typedef QueueHandle_t PlatformEventHandle_t;
+typedef PlatformQueueHandle PlatformEventHandle_t;
 
 /**
  * @enum PlatformEvent_t

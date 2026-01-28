@@ -24,3 +24,10 @@
  * @return Broj tickova (uint32_t)
  */
 uint32_t platform_getNumOfTicks(void);
+
+/**
+ * @brief Dohvaća broj milisekundi procesora od pokretanja taska.
+ * 
+ * @return Broj milisekundi (uint32_t)
+ */
+uint32_t platform_getNumOfMs(void);

@@ -17,9 +17,9 @@
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
-#include "app_mmwave_decoder.h"
-#include "app_mmwave_constants.h"
-#include "app_mmwave_manager.h"
+#include "app/app_mmwave_decoder.h"
+#include "app/app_mmwave_constants.h"
+#include "app/app_types.h"
 
 /**
  * @brief Inicijalizira mmWave senzor i sustav koji njime upravlja.
@@ -49,24 +49,46 @@ AppSensorStatus mmwave_start(void);
 AppSensorStatus mmwave_stop(void);
 
 /**
- * @brief Registrira pokazivač na funkciju koja se zove kad se dogodi event (report/response).
+ * @brief Deinicijalizira mmWave senzor i sustav koji njime upravlja.
  * 
- * @param fun Pokazivač na funkciju koja se zove preko callbacka
- * @return Status operacije
+ * Wrapper funkcija koja deinicijalizira aplikacijski sloj, HAL sloj i pripadajuće komponente.
+ * 
+ * @return AppSensorStatus 
  */
-AppSensorStatus registrate_onEvent_function(MMwaveEventCallback fun);
+AppSensorStatus mmwave_deinit(void);
 
 /**
- * @brief Omogućava dohvaćanje (polling) eventa (reporta/responsa) iz mmWave senzora.
+ * @brief Registrira pokazivač na funkcije koje se zovu kad se dogodi event (report/response).
  * 
- * Wrapper funkcija koja dohvaća event iz aplikacijskog sloja.
- * 
- * @param out Pokazivač na strukturu u koju se sprema dohvaćeni event
- * @param timeout_ms Vrijeme čekanja u ms
- * @return true ako je uspješno dohvaćen event
- * @return false ako nije uspješno dohvaćen event
+ * @param res_fun Pokazivač na funkciju koja se zove kad se dogodi response
+ * @param rep_fun Pokazivač na funkciju koja se zove kad se dogodi report
+ * @return Status operacije
  */
-bool mmwave_poll_event(MmwaveEvent* out, uint32_t timeout_ms);
+AppSensorStatus registrate_onEvent_function(MMwaveResponseCallback res_fun, MMwaveReportCallback rep_fun);
+
+/**
+ * @brief Omogućava dohvaćanje (polling) responsa iz mmWave senzora.
+ * 
+ * Wrapper funkcija koja dohvaća response iz aplikacijskog sloja.
+ * 
+ * @param out Pokazivač na strukturu u koju se sprema dohvaćeni response
+ * @param timeout_ms Vrijeme čekanja u ms
+ * @return true ako je uspješno dohvaćen response
+ * @return false ako nije uspješno dohvaćen response
+ */
+bool mmwave_poll_response(DecodedResponse* out, uint32_t timeout_ms);
+
+/**
+ * @brief Omogućava dohvaćanje (polling) reporta iz mmWave senzora.
+ * 
+ * Wrapper funkcija koja dohvaća report iz aplikacijskog sloja.
+ * 
+ * @param out Pokazivač na strukturu u koju se sprema dohvaćeni report
+ * @param timeout_ms Vrijeme čekanja u ms
+ * @return true ako je uspješno dohvaćen report
+ * @return false ako nije uspješno dohvaćen report
+ */
+bool mmwave_poll_report(DecodedReport* out, uint32_t timeout_ms);
 
 /**
  * @brief Šalje upit (inquiry) za heartbeat na mmWave modul.

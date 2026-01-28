@@ -24,76 +24,8 @@
 #include "stdio.h"
 #include "stdint.h"
 #include "stdbool.h"
-#include "mmwave_core_interface.h"
-
-/**
- * @enum mmwave_status_t
- * @brief Status operacije nad mmWave core modulom.
- * 
- */
-typedef enum {
-    S_MMWAVE_OK, /**< Operacija uspješna */
-    S_MMWAVE_MEMORY_PROBLEM, /**< Neuspješna alokacija memorije */
-    S_MMWAVE_ERR_INVALID_PARAM, /**< Korišteni neispravni ulazni podatci */
-    S_MMWAVE_ERR_TIMEOUT /**< Timeout tijekom operacije */
-} mmwave_status_t;
-
-/**
- * @enum mmwave_frame_status_t
- * @brief Status parsiranja ulaznih podataka.
- * 
- */
-typedef enum {
-    MMWAVE_FRAME_OK, /**< Nađen je barem jedan cijeli frame i stavljen u queue */
-    MMWAVE_NO_FRAMES, /**< Nije pronađen niti jedan valjan frame (bajtovi su svi odbačeni) */
-    MMWAVE_QUEUE_FULL, /**< Frame je valjan, ali queue je pun, odbacuje se okvir */
-    MMWAVE_MEMORY_PROBLEM, /**< Nedovoljno memorije na heapu */
-    MMWAVE_UNFINISHED_FRAME /**< Nije pronađen niti jedan cijeli frame, ali postoji jedan u izgradnji */
-} mmwave_frame_status_t;
-
-/**
- * @name Specifični dijelovi frame-a
- * @{
- */
-
-/**
- * @brief Prvi bajt zaglavlja frame-a.
- */
-#define HEADER1 0x53
-
-/**
- * @brief Drugi bajt zaglavlja frame-a.
- */
-#define HEADER2 0x59
-
-/**
- * @brief Prvi bajt završetka frame-a.
- */
-#define FOOTER1 0x54
-
-/**
- * @brief Drugi bajt završetka frame-a.
- */
-#define FOOTER2 0x43
-/**
- * @}
- * 
- */
-
- /**
-  * @brief Početna veličina internog parser buffera.
-  * 
-  */
-#define STARTING_PARSER_BUFFER_SIZE 20
-
-/**
- * @brief Maksimalna veličina internog parser buffera.
- * 
- * Maksimalna veličina payloada je 65535 bajtova, uz dodatne bajtove za
- * header, footer, control word, command word, checksum i bajtove koji određuju veličinu payloada. 
- * 
- */
-#define MAX_PARSER_BUFFER_SIZE (65535 + 9)
+#include "mmwave_interface/mmwave_core_types.h"
+#include "mmwave_interface/mmwave_core_interface.h"
 
 /**
  * @brief Gradi kompletan mmWave frame za slanje.
@@ -106,7 +38,8 @@ typedef enum {
  * @param cmd_w Command word
  * @return Pokazivač na strukturu stvorenog okvira ili NULL
  */
-mmWaveFrame* mmwave_build_frame(const uint8_t* payload, size_t payload_len, const uint8_t ctrl_w, const uint8_t cmd_w);
+bool mmwave_build_frame(mmWaveFrameForTX* out,
+    const uint8_t* payload, size_t payload_len, const uint8_t ctrl_w, const uint8_t cmd_w);
 
 /**
  * @brief Parsira ulazne RX bajtove.
@@ -130,7 +63,7 @@ mmwave_frame_status_t mmwave_parse_data(const uint8_t* data, size_t data_len);
  * 
  * @return Status operacije nad modulom
  */
-mmwave_status_t mmwave_init(void);
+mmwave_status_t mmwave_core_init(void);
 
 /**
  * @brief Zaustavlja rad mmWave core modula.
@@ -139,4 +72,4 @@ mmwave_status_t mmwave_init(void);
  * 
  * @return Status operacije nad modulom
  */
-mmwave_status_t mmwave_stop(void);
+mmwave_status_t mmwave_core_stop(void);

@@ -6,3 +6,8 @@ uint32_t platform_getNumOfTicks(void)
 {
     return xTaskGetTickCount();
 }
+
+uint32_t platform_getNumOfMs(void)
+{
+    return  pdMS_TO_TICKS(xTaskGetTickCount());
+}

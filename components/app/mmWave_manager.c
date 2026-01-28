@@ -18,21 +18,29 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 #include "app/app_mmwave_manager.h"
 #include "platform/platform_queue.h"
 #include "platform/platform_task.h"
 #include "platform/platform_memory.h"
-#include "HAL/hal_mmwave.h"
+#include "my_hal/hal_mmwave.h"
 #include "app/app_mmwave_hal_config.h"
 
 static AppSensorState current_state = APP_SENSOR_UNINIT;
-static QueueHandle_t app_event_queue; //event queue za Response/Report
+static PlatformQueueHandle app_report_queue; //event queue za Report
+static PlatformQueueHandle app_response_queue; //event queue za Response
 static AppInquiryType pending_inquiry = NO_TYPE; //trenutno poslani inquiry
 static SensorOperationMode current_mode = SENSOR_MODE_STANDARD; //mode senzora
 static task_handler decoder_task_handler;
-static MMwaveEventCallback higher_app_callback;
+static MMwaveReportCallback higher_app_report_callback;
+static MMwaveResponseCallback higher_app_response_callback;
 static bool end_flag = false;
 static bool task_ended = false;
+
+static AppDecoderContext decoder_ctx = {
+        .sendReportCallback = onReport,
+        .sendResponseCallback = onResponse
+};
 
 /**
  * @brief Task za obradu (dekodiranje) primljenih parsiranih podataka.
@@ -51,17 +59,28 @@ static void decoder_task(void* arg)
                 task_ended = true;
                 break;
             }
+            platform_delay_task(20);
             continue;
         }
 
-        mmWaveFrameData frame = {
+        FrameData_t frame = {
             .data = buffer.data,
-            .data_len = buffer.len
+            .len = buffer.len
         };
 
-        app_mmwave_decoder_process_frame(frame.data, frame.data_len);
+        if(buffer.data == NULL || buffer.len == 0) {
+            printf("[decoder_task] ERROR: empty frame (data=%p len=%zu)\n",
+            buffer.data, buffer.len);
+            continue;
+        } //KASNIJE MAKNUTI
+
+        printf("[decoder_task] Got frame len=%zu\n", buffer.len); //KASNIJE MAKNUTI
+
+        app_mmwave_decoder_process_frame(frame.data, frame.len);
         //tek sada kada smo uzeli podatke i protumačili frame
         //oslobađamo memoriju koju je mmwave_core zauzeo za spremanje frame-a
+        printf("[decoder_task] Releasing frame memory: frame.data=%p, frame.len=%zu\n",
+            frame.data, frame.len);
         hal_mmwave_release_frame_memory(&frame);
     }
 }
@@ -74,18 +93,25 @@ AppSensorStatus app_init_sys(void)
 
     hal_mmwave_config* hal_conf = app_mmwave_get_hal_config();
     mmWave_core_interface* core_call = app_mmwave_get_core_interface();
+    if(!hal_conf || !core_call) {
+        printf("[app_init] ERROR: NULL HAL config or core interface\n");
+        return APP_SENSOR_ERROR;
+    } //KASNIJE MAKNUTI
+
+    if(!core_call->mmwave_parse_data || !core_call->mmwave_build_frame) {
+        printf("[app_init] ERROR: core interface incomplete\n");
+        return APP_SENSOR_ERROR;
+    } //KASNIJE MAKNUTI
+    
     if(hal_mmwave_init(hal_conf, core_call) != HAL_MMWAVE_OK) {
         return APP_SENSOR_ERROR;
     }
 
-    AppDecoderContext decoder_ctx = {
-        .sendReportCallback = onReport,
-        .sendResponseCallback = onResponse
-    };
     app_mmwave_decoder_init(&decoder_ctx);
 
-    app_event_queue = platform_queue_create(APP_EVENT_QUEUE_LEN, sizeof(MmwaveEvent));
-    if(!app_event_queue) {
+    app_report_queue = platform_queue_create(APP_EVENT_QUEUE_LEN, sizeof(DecodedReport));
+    app_response_queue = platform_queue_create(APP_EVENT_QUEUE_LEN, sizeof(DecodedResponse));
+    if(!app_report_queue || !app_response_queue) {
         return APP_SENSOR_ERROR;
     }
 
@@ -105,8 +131,12 @@ AppSensorStatus app_start_sys(void)
         return APP_SENSOR_ERROR;
     }
 
-    TaskConfig_t task_conf = {decoder_task, "decoder_task", 4000, NULL, 6};
+    TaskConfig_t task_conf = {decoder_task, "decoder_task", 8000, NULL, 6};
     decoder_task_handler = platform_create_task(&task_conf);
+    if(!decoder_task_handler) {
+        printf("[app_start] ERROR: decoder task not created\n"); //KASNIJE MAKNUTI
+        return APP_SENSOR_ERROR;
+    }
 
     current_state = APP_SENSOR_RUNNING;
     return APP_SENSOR_OK;
@@ -126,12 +156,32 @@ AppSensorStatus app_stop_sys(void)
     while(!task_ended) {
         platform_delay_task(10);
     }
-    app_mmwave_decoder_deinit();
     platform_delete_task(decoder_task_handler);
     decoder_task_handler = NULL;
 
-    platform_queue_delete(app_event_queue);
-    app_event_queue = NULL;
+    platform_queue_delete(app_report_queue);
+    app_report_queue = NULL;
+
+    platform_queue_delete(app_response_queue);
+    app_response_queue = NULL;
+
+    current_state = APP_SENSOR_STOPPED;
+    return APP_SENSOR_OK;
+}
+
+AppSensorStatus app_deinit_sys(void)
+{
+    if(current_state != APP_SENSOR_STOPPED) {
+        return APP_SENSOR_INVALID_STATE;
+    }
+
+    if(hal_mmwave_deinit() != HAL_MMWAVE_OK) {
+        return APP_SENSOR_ERROR;
+    }
+    app_mmwave_decoder_deinit();
+
+    end_flag = false;
+    task_ended = false;
 
     current_state = APP_SENSOR_UNINIT;
     return APP_SENSOR_OK;
@@ -154,79 +204,114 @@ AppSensorStatus app_set_mode(SensorOperationMode mode)
     return APP_SENSOR_OK;
 }
 
-void mmwave_register_event_callback(MMwaveEventCallback cb)
+void mmwave_register_event_callback(MMwaveResponseCallback res_cb, MMwaveReportCallback rep_cb)
 {
-    higher_app_callback = cb;
+    higher_app_response_callback = res_cb;
+    higher_app_report_callback = rep_cb;
 }
 
-bool app_get_event(MmwaveEvent* out_event, uint32_t timeout_ms)
+bool app_get_response(DecodedResponse* out_response, uint32_t timeout_ms)
 {
     QueueElement_t q_el;
-    if(platform_queue_get(app_event_queue, &q_el, timeout_ms) != QUEUE_OK) {
+    if(platform_queue_get(app_response_queue, &q_el, timeout_ms) != QUEUE_OK) {
         return false;
     }
 
-    MmwaveEvent* event_ptr = (MmwaveEvent*)q_el.data;
-    *out_event = *event_ptr; //kopiramo cijelu strukturu u korisnički buffer
-    //sad treba osloboditi memoriju zauzetu kod stvaranja eventa (dodavanje u queue)
-    platform_free(event_ptr);
+    DecodedResponse* response_ptr = (DecodedResponse*)q_el.data;
+    *out_response = *response_ptr; //kopiramo cijelu strukturu u korisnički buffer
+
+    //oslobađamo memoriju zauzetu kod stvaranja RESPONSE eventa (dodavanje u queue)
+    platform_free(response_ptr);
+
+    return true;
+}
+
+bool app_get_report(DecodedReport* out_report, uint32_t timeout_ms)
+{
+    QueueElement_t q_el;
+    if(platform_queue_get(app_report_queue, &q_el, timeout_ms) != QUEUE_OK) {
+        return false;
+    }
+
+    DecodedReport* report_ptr = (DecodedReport*) q_el.data;
+    *out_report = *report_ptr;
+
+    //sad treba osloboditi memoriju zauzetu kod stvaranja REPORT-a (dodavanje u queue)
+    platform_free(report_ptr);
 
     return true;
 }
 
 void onResponse(DecodedResponse* response)
 {
-    MmwaveEvent ev;
-    ev.type = MMWAVE_EVENT_RESPONSE;
-    ev.response = *response;
+    if(!response) return;
 
-    //za queue trebamo alocirani event
-    MmwaveEvent* ev_queue;
-    if(platform_malloc(&ev_queue, sizeof(MmwaveEvent)) != MEM_OK) {
+    // Provjera veličine response podataka - odbijamo ako prelazi maximum
+    if(response->data_l > MAX_RESPONSE_DATA_LEN) {
         return;
     }
-    *ev_queue = ev;
+
+    //za queue trebamo alocirani event (jer se dijeli među slojevima)
+    //moramo raditi kopiju jer će task odmah nakon izbrisati pravi frame i vratiti HAL-u memoriju
+    DecodedResponse* ev_queue;
+    if(platform_malloc((void**)&ev_queue, sizeof(DecodedResponse)) != MEM_OK) {
+        printf("[onResponse] ERROR: malloc failed\n");
+        return;
+    }
+    printf("[onResponse] Kopiranje response strukture na heap\n");
+    memcpy(ev_queue, response, sizeof(DecodedResponse));
 
     QueueElement_t q_el = {
         .data = (uint8_t*)ev_queue,
-        .len = sizeof(MmwaveEvent)
+        .len = sizeof(DecodedResponse)
     };
 
     //šaljemo event u queue
-    if(platform_queue_send(app_event_queue, &q_el, 10) != QUEUE_OK) {
+    printf("[onResponse] Slanje u queue\n");
+    if(platform_queue_send(app_response_queue, &q_el, 10) != QUEUE_OK) {
+        printf("[onResponse] ERROR: queue_send failed\n");
         platform_free(ev_queue);
         return;
     }
-    if(higher_app_callback) { //callbacku dajemo kopiju event strukture
-        higher_app_callback(&ev);
+    printf("[onResponse] Uspješno poslano u queue\n");
+    if(higher_app_response_callback) {
+        higher_app_response_callback(response);
     }
 }
 
 void onReport(DecodedReport* report)
 {
-    MmwaveEvent ev;
-    ev.type = MMWAVE_EVENT_REPORT;
-    ev.report = *report;
-
-    //za queue trebamo alocirani event
-    MmwaveEvent* ev_queue;
-    if(platform_malloc(&ev_queue, sizeof(MmwaveEvent)) != MEM_OK) {
+    if(!report) {
+        printf("[onReport] ERROR: report is NULL\n");
         return;
     }
-    *ev_queue = ev;
+
+    printf("[onReport] Primljen report\n");
+
+    //za queue trebamo alocirani event
+    DecodedReport* ev_queue;
+    if (platform_malloc((void**)&ev_queue, sizeof(DecodedReport)) != MEM_OK) {
+        printf("[onReport] ERROR: malloc failed\n");
+        return;
+    }
+    printf("[onReport] Kopiranje report strukture na heap\n");
+    memcpy(ev_queue, report, sizeof(DecodedReport));
 
     QueueElement_t q_el = {
         .data = (uint8_t*)ev_queue,
-        .len = sizeof(MmwaveEvent)
+        .len = sizeof(DecodedReport)
     };
 
     //šaljemo event u queue
-    if(platform_queue_send(app_event_queue, &q_el, 10) != QUEUE_OK) {
+    printf("[onReport] Slanje u queue\n");
+    if(platform_queue_send(app_report_queue, &q_el, 10) != QUEUE_OK) {
+        printf("[onReport] ERROR: queue_send failed\n");
         platform_free(ev_queue);
         return;
     }
-    if(higher_app_callback) { //callbacku dajemo kopiju event strukture
-        higher_app_callback(&ev);
+    printf("[onReport] Uspješno poslano u queue\n");
+    if(higher_app_report_callback) {
+        higher_app_report_callback(report);
     }
 }
 
