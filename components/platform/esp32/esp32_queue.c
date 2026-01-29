@@ -1,3 +1,21 @@
+/**
+ * @file esp32_queue.c
+ * @author Marko Fuček
+ * @brief ESP32 implementacija platform_queue API-ja.
+ * 
+ * Ovaj modul implementira funkcije za rad s queue-ovima na platform sloju. Modul je wrapper za
+ * FreeRTOS queue API kako bi se omogućila apstrakcija i neovisnost ostatka sustava o platformi.
+ * 
+ * @note Sve timeout vrijednosti se automatski konvertiraju iz milisekundi u tickove koristeći
+ * FreeRTOS pdMS_TO_TICKS makro.
+ * 
+ * @version 0.1
+ * @date 2026-01-29
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
+
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"

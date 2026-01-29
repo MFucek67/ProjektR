@@ -1,3 +1,24 @@
+/**
+ * @file mmwave_core_types.h
+ * @author Marko Fuček
+ * @brief Definicije tipova, statusa i konstanti za mmWave core sloj.
+ * 
+ * Ovaj header definira sve statuse rada mmWave core sloja i statuse parsiranja ulaznih podataka,
+ * te konstante vezane uz format frame-a. Dodatno, definira tipove podataka koji se koriste za
+ * TX i podatke koji nose semantičku vrijednost.
+ * 
+ * Svrha ovog modula je dati tipove podataka, konstante i strukture koji se koriste interno unutar
+ * core sloja i u komunikaciji s HAL slojem.
+ * 
+ * @note Tipovi iz ovog file-a ne izlažu se aplikacijskom sloju.
+ *  
+ * @version 0.1
+ * @date 2026-01-29
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
+
 #pragma once
 #include "stdio.h"
 #include "stdint.h"

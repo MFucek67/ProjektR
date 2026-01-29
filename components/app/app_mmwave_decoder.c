@@ -72,16 +72,14 @@ static void decoded_response_reset(DecodedResponse* dr)
  */
 static void send_response_safe(DecodedResponse* response, const uint8_t* payload, int payload_len)
 {
-    printf("[decoder send_response_safe] payload_len=%d, MAX=%d\n", payload_len, MAX_RESPONSE_DATA_LEN);
+    //printf("[DECODER send_response_safe] payload_len=%d, MAX=%d\n", payload_len, MAX_RESPONSE_DATA_LEN);
     
     if(payload_len <= MAX_RESPONSE_DATA_LEN && payload_len >= 0) {
         response->data_l = payload_len;
         if(payload_len > 0) {
             memcpy(response->data, payload, payload_len);
         }
-        printf("[decoder send_response_safe] Pozivam callback sa type=%d, len=%d\n", response->type, response->data_l);
-        context->sendResponseCallback(response);
-        printf("[decoder send_response_safe] Callback se vratio\n");
+        context->sendResponseCallback(*response);
     } else {
         printf("[decoder] ERROR: payload_len=%d exceeds MAX_RESPONSE_DATA_LEN=%d\n", payload_len, MAX_RESPONSE_DATA_LEN);
     }
@@ -108,35 +106,35 @@ void app_mmwave_decoder_deinit(void)
 void app_mmwave_decoder_process_frame(uint8_t* data, size_t data_len)
 {
     if(!initialized) {
-        printf("[decoder] ERROR: not initialized\n"); //KASNIJE MAKNUTI
+        printf("[DECODER] ERROR: not initialized\n");
         return;
     }
     if(!context) {
-        printf("[decoder] ERROR: context=NULL\n"); //KASNIJE MAKNUTI
+        printf("[DECODER] ERROR: context=NULL\n");
         return;
     }
     if(!context->sendReportCallback) {
-        printf("[decoder] ERROR: sendReportCallback not set\n"); //KASNIJE MAKNUTI
+        printf("[DECODER] ERROR: sendReportCallback not set\n");
         return;
     }
     if(!context->sendResponseCallback) {
-        printf("[decoder] ERROR: sendResponseCallback not set\n"); //KASNIJE MAKNUTI
+        printf("[DECODER] ERROR: sendResponseCallback not set\n");
         return;
     }
     if(!data) {
-        printf("[decoder] ERROR: data=NULL\n"); //KASNIJE MAKNUTI
+        printf("[DECODER] ERROR: data=NULL\n");
         return;
     }
     if(data_len < 2) {
-        printf("[decoder] ERROR: frame too short (%zu)\n", data_len); //KASNIJE MAKNUTI
+        printf("[DECODER] ERROR: frame too short (%zu)\n", data_len);
         return;
     }
 
-    printf("[decoder] frame len=%zu ctrl=0x%02X cmd=0x%02X\n",
-       data_len, data[0], data[1]); //KASNIJE MAKNUTI
+    /*printf("[decoder] frame len=%zu ctrl=0x%02X cmd=0x%02X\n",
+       data_len, data[0], data[1]);*/
 
-    DecodedReport report; //callback mora kopirati podatak 
-    DecodedResponse response; //callback mora kopirati podatak
+    DecodedReport report;
+    DecodedResponse response;
     decoded_report_reset(&report);
     decoded_response_reset(&response);
     uint8_t ctrl_w = data[0];
@@ -147,7 +145,7 @@ void app_mmwave_decoder_process_frame(uint8_t* data, size_t data_len)
     if(ctrl_w == INIT_COMPL_INFO_CTRL && cmd_w == INIT_COMPL_INFO_CMD) {
         report.has_init_completed_info = true;
         report.init_completed_info = true;
-        context->sendReportCallback(&report);
+        context->sendReportCallback(report);
     } else if(ctrl_w == 0x80) {
         switch (cmd_w)
         {
@@ -156,11 +154,11 @@ void app_mmwave_decoder_process_frame(uint8_t* data, size_t data_len)
                 if(data[2] == 0x00) {
                     report.has_presence_info = true;
                     report.presence_info = UNOCCUPIED;
-                    context->sendReportCallback(&report);
+                    context->sendReportCallback(report);
                 } else if(data[2] == 0x01) {
                     report.has_presence_info = true;
                     report.presence_info = OCCUPIED;
-                    context->sendReportCallback(&report);
+                    context->sendReportCallback(report);
                 }
             }
             break;
@@ -169,15 +167,15 @@ void app_mmwave_decoder_process_frame(uint8_t* data, size_t data_len)
                 if(data[2] == 0x00) {
                     report.has_motion_info = true;
                     report.motion_info = MOTION_NONE;
-                    context->sendReportCallback(&report);
+                    context->sendReportCallback(report);
                 } else if(data[2] == 0x01) {
                     report.has_motion_info = true;
                     report.motion_info = MOTIONLESS;
-                    context->sendReportCallback(&report);
+                    context->sendReportCallback(report);
                 } else if(data[2] == 0x02) {
                     report.has_motion_info = true;
                     report.motion_info = ACTIVE;
-                    context->sendReportCallback(&report);
+                    context->sendReportCallback(report);
                 }
             }
             break;
@@ -185,7 +183,7 @@ void app_mmwave_decoder_process_frame(uint8_t* data, size_t data_len)
             if(payload_len == BMP_INFO_LEN) {
                 report.has_bmp_info = true;
                 report.bmp_info = data[2];
-                context->sendReportCallback(&report);
+                context->sendReportCallback(report);
             }
             break;
         case PROXIMITY_INFO_CMD:
@@ -193,15 +191,15 @@ void app_mmwave_decoder_process_frame(uint8_t* data, size_t data_len)
                 if(data[2] == 0x00) {
                     report.has_proximity_info = true;
                     report.proximity_info = NO_STATE;
-                    context->sendReportCallback(&report);
+                    context->sendReportCallback(report);
                 } else if(data[2] == 0x01) {
                     report.has_proximity_info = true;
                     report.proximity_info = NEAR;
-                    context->sendReportCallback(&report);
+                    context->sendReportCallback(report);
                 } else if(data[2] == 0x02) {
                     report.has_proximity_info = true;
                     report.proximity_info = FAR;
-                    context->sendReportCallback(&report);
+                    context->sendReportCallback(report);
                 }
             }
             break;
@@ -329,7 +327,7 @@ void app_mmwave_decoder_process_frame(uint8_t* data, size_t data_len)
         default:
             break;
         }
-        context->sendReportCallback(&report);
+        context->sendReportCallback(report);
     }
 
     //Responses

@@ -1,3 +1,20 @@
+/**
+ * @file app_types.h
+ * @author Marko Fuček
+ * @brief Definicije tipova i konstanti za mmWave application sloj.
+ * 
+ * Ovaj header definira osnovne konfiguracijske konstante aplikacijskog sloja, statuse i
+ * stanja mmWave sustava za internu uporabu aplikacijskog sloja, tipove aplikacijskih upita (inquiries),
+ * tipove eventova (report/response), strukture dekodiranih report-ova i response-ova, te callback
+ * tipove vanjskog programa.
+ * 
+ * @version 0.1
+ * @date 2026-01-29
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
+
 #pragma once
 #include <stdio.h>
 #include <stdint.h>
@@ -7,7 +24,7 @@
  * @brief Veličina queue-a za evente aplikacijskog sloja.
  * 
  */
-#define APP_EVENT_QUEUE_LEN 20
+#define APP_EVENT_QUEUE_LEN 40
 
 /**
  * @brief Maksimalna dopuštena duljina response payloada (u bajtovima).
@@ -176,14 +193,14 @@ typedef struct {
  * @typedef MMwaveReportCallback
  * @brief Callback funkcija za notifikacije vanjskog programa o novim report-ovima.
  * 
- * @param event Pokazivač na mmWave report strukturu
+ * @param event mmWave report struktura
  */
-typedef void (*MMwaveReportCallback)(DecodedReport* report);
+typedef void (*MMwaveReportCallback)(DecodedReport report);
 
 /**
  * @typedef MMwaveResponseCallback
  * @brief Callback funkcija za notifikacije vanjskog programa o novim response-ovima.
  * 
- * @param event Pokazivač na mmWave response strukturu
+ * @param event mmWave response struktura
  */
-typedef void (*MMwaveResponseCallback)(DecodedResponse* response);
+typedef void (*MMwaveResponseCallback)(DecodedResponse response);

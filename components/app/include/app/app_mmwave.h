@@ -5,7 +5,7 @@
  * 
  * Ovaj modul pruža API aplikacijskog sloja za mmWave senzor (ujedno i vanjski API).
  * Omogućava inicijalizaciju, pokretanje i zaustavljanje sustava,
- * polling eventova (reportova/responsova) te slanje upita (inquiry) na mmWave modul.
+ * polling eventova (report-ova/response-ova) te slanje upita (inquiry) na mmWave modul.
  * 
  * @version 0.1
  * @date 2026-01-24

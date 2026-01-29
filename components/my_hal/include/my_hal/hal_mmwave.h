@@ -42,8 +42,8 @@
  * 
  * @param configuration Pokazivač na konfiguracijsku strukturu
  * @param core_api Pokazivač na mmWave core interface
- * @return HAL_MMWAVE_OK ako je inicijalizacija uspješno obavljena
- * @return HAL_MMWAVE_ERROR ako je inicijalizacija u nekom koraku zakazala
+ * @return HAL_MMWAVE_OK ako je inicijalizacija uspješno obavljena, 
+ * @return HAL_MMWAVE_ERROR ako je inicijalizacija u nekom koraku zakazala, 
  * @return HAL_MMWAVE_INVALID_STATE ako je modul u stanju iz kojeg se ne smije ponovno inicijalizirati
  * ili je inicijalizacija već prije izvršena
  */
@@ -55,8 +55,8 @@ HalMmwaveStatus hal_mmwave_init(hal_mmwave_config* configuration, mmWave_core_in
  * Funkcija resetira interne zastavice za taskove, pokreće ISR za UART, pokreće platform converter task,
  * te pokreće sender i receiver taskove - efektivno započinje primanje, obradu i slanje frame-ova.
  * 
- * @return HAL_MMWAVE_OK ako je modul uspješno pokrenut
- * @return HAL_MMWAVE_ERROR ako je modul neuspješno pokrenut
+ * @return HAL_MMWAVE_OK ako je modul uspješno pokrenut, 
+ * @return HAL_MMWAVE_ERROR ako je modul neuspješno pokrenut, 
  * @return HAL_MMWAVE_INVALID_STATE ako je modul u stanju iz kojeg se ne smije pokrenuti ili već pokrenut
  */
 HalMmwaveStatus hal_mmwave_start(void);
@@ -64,11 +64,11 @@ HalMmwaveStatus hal_mmwave_start(void);
 /**
  * @brief Zaustavlja rad HAL mmWave modula.
  * 
- * Funkcija zaustavlja rad ISR-a, čeka na obradu preostalih frame-ova u sustavu te nakon toga
- * gasi sender i receiver taskove, oslobađa njihovu memoriju te postavlja modul u STOPPED stanje.
+ * Funkcija zaustavlja rad ISR-a, čeka na obradu preostalih frame-ova u sustavu te da se taskovi za receive
+ * i send uspješno ugase, gasi parser, te postavlja modul u STOPPED stanje.
  * 
- * @return HAL_MMWAVE_OK ako je modul uspješno zaustavljen
- * @return HAL_MMWAVE_ERROR ako je modul neuspješno zaustavljen
+ * @return HAL_MMWAVE_OK ako je modul uspješno zaustavljen, 
+ * @return HAL_MMWAVE_ERROR ako je modul neuspješno zaustavljen, 
  * @return HAL_MMWAVE_INVALID_STATE ako je modul u stanju iz kojeg se ne smije zaustaviti ili već zaustavljen
  */
 HalMmwaveStatus hal_mmwave_stop(void);
@@ -79,8 +79,8 @@ HalMmwaveStatus hal_mmwave_stop(void);
  * Funkcija oslobađa sve alocirane resurse (interni queue-ovi i UART driver) te postavlja interne
  * varijable u NULL stanje.
  * 
- * @return HAL_MMWAVE_OK ako je deinicijalizacija uspješno obavljena
- * @return HAL_MMWAVE_ERROR ako je deinicijalizacija u nekom koraku zakazala
+ * @return HAL_MMWAVE_OK ako je deinicijalizacija uspješno obavljena, 
+ * @return HAL_MMWAVE_ERROR ako je deinicijalizacija u nekom koraku zakazala, 
  * @return HAL_MMWAVE_INVALID_STATE ako je modul u stanju iz kojeg se ne smije deinicijalizirati ili
  * je već deinicijaliziran
  */
@@ -97,8 +97,8 @@ HalMmwaveStatus hal_mmwave_deinit(void);
  * @param data_len Duljina payload-a
  * @param ctrl_w Control word
  * @param cmd_w Command word
- * @return HAL_MMWAVE_OK ako je slanje uspješno
- * @return HAL_MMWAVE_ERROR ako je slanje neuspješno
+ * @return HAL_MMWAVE_OK ako je slanje uspješno, 
+ * @return HAL_MMWAVE_ERROR ako je slanje neuspješno, 
  * @return HAL_MMWAVE_INVALID_STATE ako je modul u stanju iz kojeg se ne smije izvršiti slanje
  */
 HalMmwaveStatus hal_mmwave_send_frame(const uint8_t* data, size_t data_len, const uint8_t ctrl_w, const uint8_t cmd_w);
@@ -113,8 +113,8 @@ HalMmwaveStatus hal_mmwave_send_frame(const uint8_t* data, size_t data_len, cons
  * 
  * @param buffer Pokazivač na buffer u koji se sprema primljeni frame
  * @param timeout_in_ms Vrijeme čekanja u ms
- * @return HAL_MMWAVE_OK ako je dohvaćanje uspješno
- * @return HAL_MMWAVE_ERROR ako je dohvaćanje neuspješno
+ * @return HAL_MMWAVE_OK ako je dohvaćanje uspješno, 
+ * @return HAL_MMWAVE_ERROR ako je dohvaćanje neuspješno, 
  * @return HAL_MMWAVE_INVALID_STATE ako je modul u stanju iz kojeg se ne smije izvršiti dohvaćanje
  */
 HalMmwaveStatus hal_mmwave_get_frame_from_queue(FrameData_t* buffer, uint32_t timeout_in_ms);
@@ -122,7 +122,8 @@ HalMmwaveStatus hal_mmwave_get_frame_from_queue(FrameData_t* buffer, uint32_t ti
 /**
  * @brief Oslobađa memoriju zauzetu mmWave frame-om.
  * 
- * Funkcija se poziva iz Aplication sloja nakon što on završi s obradom frame-a.
+ * Funkcija se poziva iz aplikacijskog sloja nakon što on završi s obradom frame-a, kako bi se
+ * oslobodila memorija koju je HAL zauzeo.
  * 
  * @param frame_data Pokazivač na strukturu frame-a
  */

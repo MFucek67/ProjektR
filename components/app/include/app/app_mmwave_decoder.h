@@ -3,8 +3,10 @@
  * @author Marko Fuček
  * @brief Dekoder mmWave podataka iz okvira na aplikacijskom sloju.
  * 
- * Ovaj modul definira strukture i API za dekodiranje payloada i određivanje vrste response-a ili
- * reporta. Modul koristi već parsirane i protokolski odvojene semantički korisne podatke koje tumači
+ * Ovaj modul definira API koji se koristi za dekodiranje semantički korisnih podataka i dojavu
+ * ishoda i vrste dekodiranog eventa (report ili response).
+ * 
+ * Modul koristi već parsirane i protokolski odvojene semantički korisne podatke koje tumači
  * i pomoću kojih gradi strukture iz kojih podatci postaju korisni nekoj aplikaciji koja koristi
  * kranji API.
  * 
@@ -34,19 +36,18 @@
  * decoder šalje dekodirane responsove i reportove.
  * 
  */
-typedef struct
-{
+typedef struct {
     /**
      * @brief Callback za slanje dekodiranog reporta.
-     * @param report Pokazivač na strukturu dekodiranog reporta
+     * @param report Struktura dekodiranog reporta
      */
-    void (*sendReportCallback)(DecodedReport* report);
+    void (*sendReportCallback)(DecodedReport report);
 
     /**
      * @brief Callback za slanje dekodiranog responsea.
-     * @param response Pokazivač na strukturu dekodiranog responsea
+     * @param response Struktura dekodiranog responsea
      */
-    void (*sendResponseCallback)(DecodedResponse* response);
+    void (*sendResponseCallback)(DecodedResponse response);
 } AppDecoderContext;
 
 /**

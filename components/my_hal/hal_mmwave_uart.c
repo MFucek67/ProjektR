@@ -77,7 +77,6 @@ static PlatformQueueHandle tx_queue = NULL; /**< Queue koji se koristi za TX fra
 static bool _saveFrame(mmWaveFrameSemanticData* frame_data)
 {
     QueueOperationStatus qos;
-    printf("[HAL] saveFrame len=%zu\n", frame_data->len); //KASNIJE MAKNUTI
 
     if(frame_data != NULL && frame_queue != NULL) {
         FrameData_t new_frame_data = {
@@ -90,7 +89,6 @@ static bool _saveFrame(mmWaveFrameSemanticData* frame_data)
             printf("[HAL] saveFrame FAILED (queue full)\n"); //KASNIJE MAKNUTI
             return false;
         }
-        printf("[HAL] saveFrame queued\n"); //KASNIJE MAKNUTI
         return true;
     }
     return false;
@@ -165,6 +163,8 @@ static void hal_free(uint8_t* mem, size_t size_of_mem)
  * Task će se sam ugasiti i osloboditi zauzete resurse kada dispatcher task (definiran u platform sloju)
  * završi i isprazne se svi do tada dodani eventi iz event queue.
  * 
+ * @note Trenutno se obrađuju samo PLATFORM_EVENT_RX_DATA eventi, ostali tipovi se samo preskaču.
+ * 
  * @param arg Ne koristi se
  */
 static void hal_receive_task(void* arg)
@@ -176,13 +176,19 @@ static void hal_receive_task(void* arg)
             continue;
         }
         if(platform_event_wait(event_queue, &buff, 200) == PLATFORM_EVENT_OK) {
-            printf("[HAL RX] uart event type=%d\n", buff.type); //KASNIJE MAKNUTI
             //sad imamo event i ovisno o eventu radimo operaciju:
             static uint8_t rx_tmp_buff[512];
             if(buff.type == PLATFORM_EVENT_RX_DATA && buff.len > 0) {
+                if(buff.len > 512) {
+                    printf("[HAL RX] ERROR: event len=%d prelazi velicinu buffer-a\n", buff.len);
+                    continue;
+                }
                 int read_len = platform_uart_read(current_board_id, rx_tmp_buff, buff.len, 20);
+                if(read_len <= 0) {
+                    printf("[HAL RX] ERROR: uart read vratio %d\n", read_len);
+                    continue;
+                }
                 //pošalji na parsiranje
-                printf("[HAL RX] -> core parse\n"); //KASNIJE MAKNUTI
                 if(read_len > 0) {
                     mmwave_core_API->mmwave_parse_data(rx_tmp_buff, read_len);
                     //kada se izparsira bit će u frame_queue - koristi application layer
@@ -223,7 +229,7 @@ static void hal_send_task(void* arg)
         }
 
         if(platform_queue_get(tx_queue, &buff, 20) == QUEUE_OK) {
-            printf("[HAL TX TASK] buff.data=%p len=%d\n", buff.data, buff.len); //KASNIJE MAKNUTI
+            //printf("[HAL TX TASK] buff.data=%p len=%d\n", buff.data, buff.len);
             platform_uart_write(current_board_id, buff.data, buff.len);
             platform_free(buff.data);
         } else {
@@ -240,7 +246,6 @@ static void hal_send_task(void* arg)
 
 HalMmwaveStatus hal_mmwave_init(hal_mmwave_config* configuration, mmWave_core_interface* core_api)
 {
-    printf("[HAL] init called, state=%d\n", current_state); //KASNIJE MAKNUTI
     UARTStatus us;
 
     if(current_state != HAL_MMWAVE_UNINIT) {
@@ -263,12 +268,10 @@ HalMmwaveStatus hal_mmwave_init(hal_mmwave_config* configuration, mmWave_core_in
 
         //dajemo mmwave_core sloju strukturu s konkretnim pokazivačima na HAL funkcije
         mmwave_core_bind_callbacks(&mmwave_core_callback);
-        printf("[HAL] core callbacks bound\n"); //KASNIJE MAKNUTI
     }
 
     //restartamo interne buffere core sloja (parsera):
     mmwave_core_API->mmwave_core_init();
-    printf("[HAL] core init done\n"); //KASNIJE MAKNUTI
 
     platform_uart_config_t uart_platform_conf = {
         .baudrate = configuration->baudrate,
@@ -297,7 +300,6 @@ HalMmwaveStatus hal_mmwave_init(hal_mmwave_config* configuration, mmWave_core_in
     tx_queue = platform_queue_create(MAX_FRAMES_IN_QUEUE, sizeof(FrameData_t));
 
     current_state = HAL_MMWAVE_INIT;
-    printf("[HAL] init OK\n"); //KASNIJE MAKNUTI
     return HAL_MMWAVE_OK;
 }
 
@@ -322,10 +324,10 @@ HalMmwaveStatus hal_mmwave_start(void)
         return HAL_ERROR;
     }
     //Pokretanje taska za prepoznavanje eventova, slanje na TX i primanje reportova:
-    TaskConfig_t rx1 = {hal_receive_task, "rx_task", 10000, NULL, 5};
+    TaskConfig_t rx1 = {hal_receive_task, "rx_task", 12000, NULL, 5};
     rx_task = platform_create_task(&rx1);
     //Pokretanje taska za slanje frame-ova u TX:
-    TaskConfig_t tx1 = {hal_send_task, "tx_task", 10000, NULL, 5};
+    TaskConfig_t tx1 = {hal_send_task, "tx_task", 12000, NULL, 5};
     tx_task = platform_create_task(&tx1);
 
     current_state = HAL_MMWAVE_RUNNING;
@@ -337,7 +339,6 @@ HalMmwaveStatus hal_mmwave_stop(void)
     UARTStatus us;
     if(current_state != HAL_MMWAVE_RUNNING) {
         return HAL_MMWAVE_INVALID_STATE;
-        printf("[HAL STOP] neuspjesan stop - krivo stanje.\n");
     }
     //Prvo gasimo ISR - mora prestati slanje uart_eventova:
     us = platform_ISR_disable(current_board_id);
@@ -371,7 +372,6 @@ HalMmwaveStatus hal_mmwave_deinit(void)
         printf("[HAL DEINIT] neuspjesno deinicijaliziran UART\n");
         return HAL_ERROR;
     }
-    printf("[HAL DEINIT] uspjesno deinicijaliziran UART\n");
 
     FrameData_t tmp;
     while (platform_queue_get(frame_queue, &tmp, 0) == QUEUE_OK) {
@@ -383,12 +383,10 @@ HalMmwaveStatus hal_mmwave_deinit(void)
 
     if(frame_queue) {
         platform_queue_delete(frame_queue);
-        printf("[HAL DEINIT] obrisan frame queue\n");
         frame_queue = NULL;
     }
     if(tx_queue) {
         platform_queue_delete(tx_queue);
-        printf("[HAL DEINIT] obrisan TX queue\n");
         tx_queue = NULL;
     }
     if(mutex) {
@@ -412,15 +410,14 @@ HalMmwaveStatus hal_mmwave_deinit(void)
 
 HalMmwaveStatus hal_mmwave_send_frame(const uint8_t* data, size_t data_len, const uint8_t ctrl_w, const uint8_t cmd_w)
 {
-    printf("[HAL TX] send_frame ctrl=0x%02X cmd=0x%02X len=%zu\n",
-       ctrl_w, cmd_w, data_len); //KASNIJE KAMNUTI
+    /*printf("[HAL TX] send_frame ctrl=0x%02X cmd=0x%02X len=%zu\n",
+       ctrl_w, cmd_w, data_len);*/
     //Funkcionalnost stavljanja tx frame-a u TX queue -> može se zvati iz vana
     if(current_state == HAL_MMWAVE_UNINIT || current_state == HAL_MMWAVE_STOPPED) {
         return HAL_MMWAVE_INVALID_STATE;
     }
     mmWaveFrameForTX out_frame;
     bool success = mmwave_core_API->mmwave_build_frame(&out_frame, data, data_len, ctrl_w, cmd_w);
-    printf("[HAL TX] frame built len=%zu\n", out_frame.len); //KASNIJE MAKNUTI
     if(!success) {
         return HAL_ERROR;
     }
@@ -430,10 +427,9 @@ HalMmwaveStatus hal_mmwave_send_frame(const uint8_t* data, size_t data_len, cons
         qos = platform_queue_send(tx_queue, &queue_frame, 20);
         if(qos != QUEUE_OK) {
             platform_free(out_frame.data);
-            printf("[HAL TX] FAILED to queue TX frame\n"); //KASNIJE MAKNUTI
+            printf("[HAL TX] FAILED to queue TX frame\n");
             return HAL_ERROR;
         }
-        printf("[HAL TX] frame queued\n"); //KASNIJE MAKNUTI
         return HAL_MMWAVE_OK;
     } else {
         return HAL_ERROR;
@@ -450,7 +446,6 @@ HalMmwaveStatus hal_mmwave_get_frame_from_queue(FrameData_t* buffer, uint32_t ti
     if(status != QUEUE_OK) {
         return HAL_ERROR;
     }
-    printf("[HAL] app got frame len=%zu\n", buffer->len); //KASNIJE MAKNUTI
     return HAL_MMWAVE_OK;
 }
 

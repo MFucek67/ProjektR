@@ -162,7 +162,7 @@ AppSensorStatus app_inquiry_time_for_no_person_set(TimeForNoPerson time)
         time != 0x04 && time != 0x05 && time != 0x06 && time != 0x07 && time != 0x08) {
             return APP_SENSOR_BAD_ARGUMENT;
         }
-    return app_send_inquiry(&time, TIME_FOR_NO_PERSON_SETTING_LEN, CM_TIME_FOR_NO_PERSON_CTRL, TIME_FOR_NO_PERSON_SETTING_CMD);
+    return app_send_inquiry(&time, TIME_FOR_NO_PERSON_SETTING_LEN, TIME_FOR_NO_PERSON_SETTING_CTRL, TIME_FOR_NO_PERSON_SETTING_CMD);
 }
 
 AppSensorStatus app_inquiry_time_for_no_person_get(void)

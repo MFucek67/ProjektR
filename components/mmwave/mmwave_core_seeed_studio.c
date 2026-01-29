@@ -5,7 +5,7 @@
  * 
  * Ovaj modul implementira mehanizme za parsiranje dolaznih bajtova i izgradnju mmWave frame-ova
  * koji se koriste za upite na senzor. Modul je potpuno platform-independent i njegov pristup hardware-u
- * je isključivo preko HAL sloja. Stoga se za funkcionalnosti spremanja u queue te alokacije i oslobađanja
+ * je isključivo preko HAL sloja. Baš stoga se za funkcionalnosti spremanja u queue te alokacije i oslobađanja
  * memorije koristi HAL-ovim callbackovima.
  * 
  * @note Modul nije thread-safe.
@@ -85,7 +85,6 @@ static uint8_t* extend_building_space(size_t size)
  */
 static void restart_parser(void)
 {
-    printf("[CORE] restart_parser (big_frames=%d)\n", big_frames_count); //KASNIJE MAKNUTI
     head1 = false;
     head2 = false;
     built_frame_len = 0;
@@ -156,16 +155,19 @@ static mmwave_frame_status_t process_data(uint8_t* parsing_buff, size_t len)
     mmwave_frame_status_t status_of_operation;
     int finished_frames = 0;
 
+    if(len == 0) {
+        return MMWAVE_NO_FRAMES;
+    }
+
     status_of_operation = MMWAVE_NO_FRAMES;
     for(int i = 0; i < len; i++) {
         uint8_t b = parsing_buff[i];
-        printf("[CORE] byte[%d]=0x%02X h1=%d h2=%d built=%d\n",
-                i, b, head1, head2, built_frame_len); //KASNIJE MAKNUTI OVO
+        /*printf("[CORE] byte[%d]=0x%02X h1=%d h2=%d built=%d\n",
+                i, b, head1, head2, built_frame_len);*/
 
         if(!head1) {
             //nismo još pronašli 0x53
             if(parsing_buff[i] == HEADER1) {
-                printf("[CORE] HEADER1 found at index %d\n", i); //KASNIJE MAKNUTI
                 //HEAD1 nađen -> okvir započet
                 if(finished_frames == 0) { //ako nismo našli niti jedan frame do kraja, ali imamo dio jednog
                     status_of_operation = MMWAVE_UNFINISHED_FRAME;
@@ -182,7 +184,6 @@ static mmwave_frame_status_t process_data(uint8_t* parsing_buff, size_t len)
         } else if(head1 && !head2) {
             //imamo 0x53, ali nemamo 0x59
             if(parsing_buff[i] == HEADER2) {
-                printf("[CORE] HEADER2 found\n"); //KASNIJE MAKNUTI
                 //HEAD2 nađen
                 *(building_buffer + 1) = b;
                 head2 = true;
@@ -206,7 +207,6 @@ static mmwave_frame_status_t process_data(uint8_t* parsing_buff, size_t len)
             } else if(built_frame_len == 6) {
                 //kada smo ih uzeli, čitamo duljinu payloada
                 payload_len = ((uint16_t)(*(building_buffer + 4) << 8) | (uint16_t)*(building_buffer + 5));
-                printf("[CORE] payload_len = %d\n", payload_len); //KASNIJE MAKNUTI
                 //povećavamo buffer ako trebamo više od 20 bajtova za okvir (tj. >11 bajtova za payload)
                 if((payload_len + 9) >= parsing_buff_current_size) {
                     big_frames_count++;
@@ -230,7 +230,6 @@ static mmwave_frame_status_t process_data(uint8_t* parsing_buff, size_t len)
             } else {
                 //tu čitamo ostale bajtove (Payload, Checksum i Tail):
                 if(built_frame_len == (2 + 4 + payload_len + 1 + 2)) {
-                    printf("[CORE] full frame received, checking tail & checksum\n"); //KASNIJE MAKNUTI
                 //ako smo ovdje, pročitali smo cijeli okvir - provjera taila i checksuma
                     if(*(building_buffer + 2 + 4 + payload_len + 1) == FOOTER1 
                         && *(building_buffer + 2 + 4 + payload_len + 2) == FOOTER2) {
@@ -259,8 +258,6 @@ static mmwave_frame_status_t process_data(uint8_t* parsing_buff, size_t len)
                                 };
 
                                 if(hal_functions->mmwave_save_frame(&frame_data_obj)) {
-                                    printf("[CORE] frame saved to HAL queue (len=%d)\n",
-                                        frame_data_obj.len); //KASNIJE MAKNUTI
                                     status_of_operation = MMWAVE_FRAME_OK;
                                     finished_frames++;
                                 } else {
@@ -307,7 +304,6 @@ static mmwave_frame_status_t process_data(uint8_t* parsing_buff, size_t len)
  */
 mmwave_frame_status_t mmwave_parse_data(const uint8_t* data, size_t data_len)
 {
-    printf("[CORE] parse_data: len=%zu\n", data_len); //ZA MAKNUTI KASNIJE
     if(!hal_functions) {
         return S_MMWAVE_ERR_TIMEOUT;
     }

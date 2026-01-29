@@ -3,10 +3,11 @@
  * @author Marko Fuček
  * @brief Upravljačka logika application sloja.
  * 
- * Ovaj modul pruža svu upravljačku logiku aplikacijskog sloja. Sadrži tipove za stanja i statuse sustava,
- * logiku za inicijalizaciju, pokretanje i zaustavljanje sustava, drži task za obradu i tumačenje eventova 
- * koji drže podatke, funkcije koje se pozivaju kada je protumačen response ili report te općenitu funkciju
- * za slanje upita na mmWave modul.
+ * Ovaj modul pruža svu upravljačku logiku aplikacijskog sloja. Sadrži API s logikom za inicijalizaciju,
+ * pokretanje, zaustavljanje i deinicijalizaciju kompletnog sustava (svih slojeva). Drži task za obradu i 
+ * tumačenje eventova preko mmWave decodera. Također, sadrži funkcije koje se pozivaju kada je protumačen 
+ * response ili report, funkciju za dohvaćanje dekodiranog report eventa, funkciju za dohvaćanje dekodiranog
+ * response eventa, te općenitu funkciju za slanje upita (inquiry) na mmWave modul.
  * 
  * Modul ne sadrži implementaciju komunikacije niti dekodiranja podataka, već je zadužen da upravlja radom
  * ostalih aplikacijskih komponenti.
@@ -41,7 +42,8 @@ AppSensorStatus app_start_sys(void);
  * @brief Inicijalizira modul i priprema sustav za rad.
  * 
  * Funkcija dohvaća HAL konfiguraciju i mmWave core interface te kontekst s callbackovima koje
- * koristi aplication decoder. Resetira interne varijable i postavlja sustav u inicijalizirano stanje.
+ * koristi aplication decoder. Interni queue-ovi za čuvanje dekodiranih response i report eventova
+ * stvaraju se u ovoj funkciji.Dodatno, resetira interne varijable i postavlja sustav u inicijalizirano stanje.
  * 
  * @return Status operacije nad modulom
  */
@@ -51,7 +53,7 @@ AppSensorStatus app_init_sys(void);
  * @brief Zaustavlja rad sustava.
  * 
  * Funkcija zaustavlja rad HAL-a, čeka na završetak rada dekodera (graceful stop) te deinicijalizira
- * aplication decoder. Postavlja sustav u neinicijalizirano stanje.
+ * aplication decoder. Briše interne queue-ove i postavlja sustav u neinicijalizirano stanje.
  * 
  * @return Status operacije nad modulom
  */
@@ -85,10 +87,14 @@ AppSensorStatus app_set_mode(SensorOperationMode mode);
 /**
  * @brief Registracija callbackova vanjskog programa.
  * 
- * Prosljeđuje pokazivač vanjske funkcije koji aplicaton manager poziva u slučaju dodavanja
+ * Prosljeđuje pokazivače vanjskih funkcije koji aplicaton manager poziva u slučaju dodavanja
  * reporta ili response-a u queue.
  * 
- * @param cb Callback vanjske funkcije
+ * @warning Vanjske funkcije ne smiju blokirati ili izvršavati složenije zadatke nad eventima.
+ * One služe isključivo kao notifikacija vanjskoj aplikaciji da mora pollati event.
+ * 
+ * @param res_cb Callback vanjske funkcije za response evente
+ * @param rep_cb Callback vanjske funkcije za report objekte
  */
 void mmwave_register_event_callback(MMwaveResponseCallback res_cb, MMwaveReportCallback rep_cb);
 
@@ -121,11 +127,15 @@ bool app_get_report(DecodedReport* out_report, uint32_t timeout_ms);
  * 
  * Funkcija se poziva preko callbacka iz aplication decodera kod dekodiranja response eventa.
  * Funkcija na poziv stavlja event u interni queue u manageru, te, ako je zadan, poziva callback
- * vanjskog programa. 
+ * vanjskog programa.
  * 
- * @param response Pokazivač na response event strukturu
+ * @note Funkcija se poziva preko callbacka iz decodera te dinamički alocira DecodedResponse
+ * strukturu, u nju sprema kopiju one koju je dobila preko argumenta i sprema pokazivač na
+ * tu memoriju u queue i poziva callback vanjskog programa.
+ * 
+ * @param response Response event struktura
  */
-void onResponse(DecodedResponse* response);
+void onResponse(DecodedResponse response);
 
 /**
  * @brief Funkcija koja se poziva kod report eventa.
@@ -134,9 +144,13 @@ void onResponse(DecodedResponse* response);
  * Funkcija na poziv stavlja event u interni queue u manageru, te, ako je zadan, poziva callback
  * vanjskog programa.
  * 
- * @param report Pokazivač na report event strukturu
+ * @note Funkcija se poziva preko callbacka iz decodera te dinamički alocira DecodedReport
+ * strukturu, u nju sprema kopiju one koju je dobila preko argumenta i sprema pokazivač na
+ * tu memoriju u queue i poziva callback vanjskog programa.
+ * 
+ * @param report Report event struktura
  */
-void onReport(DecodedReport* report);
+void onReport(DecodedReport report);
 
 /**
  * @brief Šalje aplikacisjki inquiry (upit) na mmWave modul.

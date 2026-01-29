@@ -3,9 +3,8 @@
  * @author Marko Fuček
  * @brief Javni API i sučelje mmWave core sloja
  * 
- * U ovom file-u su definirane podatkovne strukture za mmWave frame-ove,
- * callback sučelje prema HAL sloju i callback sučelje za funkcijski API
- * mmWave core sloj.
+ * U ovom file-u definirano je callback sučelje prema HAL sloju i callback sučelje funkcijskog API-ja
+ * za mmWave core sloj.
  * 
  * mmWave core sloj ne upravlja taskovima, UART-om niti memorijom, ne poznaje
  * detalje HAL-a i implementacije platforme, već samo koristi HAL preko callbackova.

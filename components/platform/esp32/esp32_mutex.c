@@ -1,3 +1,18 @@
+/**
+ * @file esp32_mutex.c
+ * @author Marko Fuček
+ * @brief ESP32 implementacija platform_mutex API-ja.
+ * 
+ * Ovaj modul pruža implementaciju funkcija za upravljanje mutexom na razini platforme.
+ * Implementacija se temelji na FreeRTOS Semaphore mutexima.
+ * 
+ * @version 0.1
+ * @date 2026-01-29
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
+
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"

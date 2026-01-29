@@ -1,3 +1,29 @@
+/**
+ * @file test_hal.c
+ * @author Marko Fuček
+ * @brief Mock test HAL sloja.
+ * 
+ * Ovaj modul predstavlja mock test HAL sloja.
+ * 
+ * Test se sastoji od:
+ * - Inicijalizacije HAL sloja
+ * - Pokušaja dohvata frame-a iz neispravnog stanja
+ * - Pokretanja HAL sloja
+ * - Ispitivanja slanja zahtjeva na senzor (inquiry) i primanja response-a (odgovora) od senzora
+ * - Ispitivanja dohvaćanja report-a (izvještaja) sa senzora
+ * - Ispitivanja pokušaja deinicijalizacije HAL sloja prije zaustavljanja HAL sloja
+ * - Zaustavljanja HAL sloja
+ * - Deinicijalizacije HAL sloja
+ * 
+ * @note Test se bavi isključivo testiranjem HAL sloja i ne obuhvaća ostale slojeve (osim core sloja interno).
+ * 
+ * @version 0.1
+ * @date 2026-01-29
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
+
 #include <stdio.h>
 #include "tests/test_hal.h"
 #include "my_hal/hal_mmwave.h"
@@ -33,33 +59,36 @@ void hal_mmwave_run_test(void)
 
     //Inicijalizacija
     if(hal_mmwave_init(&hal_cfg, &mmwave_int) != HAL_MMWAVE_OK) {
-        printf("[HAL test] init error\n");
+        printf("[HAL test] Init error\n");
+        return;
     } else {
-        printf("[HAL test] init successful\n");
+        printf("[HAL test] Init successful\n");
     }
 
     //Pokušamo dohvatiti frame prije nego što je išta parsirano (očekivan HAL ERROR):
     FrameData_t buffer;
     if(hal_mmwave_get_frame_from_queue(&buffer, 20) != HAL_MMWAVE_OK) {
-        printf("[HAL test] ocekivano ponasanje - jos nema frame-ova\n");
+        printf("[HAL test] Ocekivano ponasanje - jos nema frame-ova\n");
     } else {
-        printf("[HAL test] neocekivano ponasanje. zasto ima frame-a vec?\n");
+        printf("[HAL test] Neocekivano ponasanje - ne bi smjelo vec imati frame-ova\n");
+        return;
     }
 
     //Ovdje startamo HAL taskove:
     if(hal_mmwave_start() != HAL_MMWAVE_OK) {
-        printf("[HAL test] start error\n");
+        printf("[HAL test] Start error\n");
+        return;
     } else {
-        printf("[HAL test] start successful\n");
+        printf("[HAL test] Start successful\n");
     }
 
     //[1]. Prvo ispitujemo slanje zahtjeva i odgovor senzora:
     //Slanje upita (inquiry):
     uint8_t payload[] = {0x0F};
     if(hal_mmwave_send_frame(payload, 1, 0x01, 0x01) != HAL_MMWAVE_OK) {
-        printf("[HAL test] slanje HEARTBEAT upita neuspjesno\n");
+        printf("[HAL test] Slanje HEARTBEAT upita neuspjesno\n");
     } else {
-        printf("[HAL test] upit za HEARTBEAT uspjesno poslan\n");
+        printf("[HAL test] Upit za HEARTBEAT uspjesno poslan\n");
 
         //Ako smo uspjesno poslali, sada ćemo čekati SAMO ODGOVOR NA NAŠ UPIT, ostalo odbacujemo
         uint32_t start = platform_getNumOfMs();
@@ -75,19 +104,19 @@ void hal_mmwave_run_test(void)
                             hal_mmwave_release_frame_memory(&buffer);
                             break;
                         } else {
-                            printf("[HAL test] zagubljen je payload\n");
+                            printf("[HAL test] Zagubljen je payload\n");
                         }
                     } else {
-                        printf("[HAL test] zaprimljeni su podatci, ali ne od HEARTBEAT zahtjeva\n");
+                        printf("[HAL test] Zaprimljeni su podatci, ali ne od HEARTBEAT zahtjeva\n");
                     }
                 } else {
-                    printf("[HAL test] minimalna duljina semantickih podataka prekrsena.\n");
+                    printf("[HAL test] Minimalna duljina semantickih podataka prekrsena.\n");
                 }
                 hal_mmwave_release_frame_memory(&buffer);
             }
         }
         if(!got_response) {
-            printf("[HAL test] response za HEARTBEAT nije dosao\n");
+            printf("[HAL test] Response za HEARTBEAT nije dosao\n");
         }
     }
 
@@ -95,19 +124,19 @@ void hal_mmwave_run_test(void)
     //Za potrebe ovog testa dovoljno je da senzor bude u Standard mode i da je No-Person-State postavljen na 10 sekundi
     uint8_t payload1[] = {0x00};
     if(hal_mmwave_send_frame(payload1, 1, 0x08, 0x00) != HAL_MMWAVE_OK) {
-        printf("[HAL test] neuspjesno postavljanje Standard Mode - test se prekida\n");
+        printf("[HAL test] Neuspjesno postavljanje Standard Mode - test se prekida\n");
         return;
     }
     platform_delay_task(100);
     uint8_t payload2[] = {0x01};
     if(hal_mmwave_send_frame(payload2, 1, 0x80, 0x0A) != HAL_MMWAVE_OK) {
-        printf("[HAL test] neuspjesno postavljanje No-Person-State - test se prekida\n");
+        printf("[HAL test] Neuspjesno postavljanje No-Person-State - test se prekida\n");
         return;
     }
     platform_delay_task(200); //čekamo da se pošalje No-Person-State i da parser obradi, kako njega ne bi pročitali kao report
 
     //Čistimo queue, da ne čitamo stare reportove i odgovore
-    printf("[HAL test] cistimo queue s frame-ovima da imamo frest start za reportove\n");
+    printf("[HAL test] Cistimo queue s frame-ovima da imamo frest start za reportove\n");
     hal_mmwave_flush_frames();
 
     //Ako su postavke uspješne i UART prazan, možemo čekati reportove:
@@ -118,42 +147,45 @@ void hal_mmwave_run_test(void)
         if(hal_mmwave_get_frame_from_queue(&buffer, 20) == HAL_MMWAVE_OK) {
             if(buffer.len >= 3) {
                 got_report = true;
-                printf("[HAL test] dobili smo report: ");
+                printf("[HAL test] Dobili smo report: ");
                 for(int i = 0; i < buffer.len; i++) {
                     printf("0x%02x, ", buffer.data[i]);
                 }
-                printf(".\n");
+                printf("\n");
                 hal_mmwave_release_frame_memory(&buffer);
                 break;
             } else {
-                printf("[HAL test] minimalna duljina semantickih podataka prekrsena.\n");
+                printf("[HAL test] Minimalna duljina semantickih podataka prekrsena\n");
             }
             hal_mmwave_release_frame_memory(&buffer);
         }
     }
     if(!got_report) {
-        printf("[HAL test] nismo dobili niti jedan report\n");
+        printf("[HAL test] Nismo dobili niti jedan report\n");
     }
 
     //Pokušavamo deinit HAL-a prije zaustavljanja (očekivano INVALID_STATE):
     if(hal_mmwave_deinit() == HAL_MMWAVE_INVALID_STATE) {
-        printf("[HAL test] - ocekivano ponasanje - ne smije se deinit prije stop\n");
+        printf("[HAL test] Uspjeh - ocekivano ponasanje - ne smije se deinit prije stop\n");
     } else {
-        printf("[HAL test] deinit prosao!??\n");
+        printf("[HAL test] ERROR - deinit prosao\n");
+        return;
     }
 
-    //Zaustavljamo rad HAL-a
+    //Zaustavljamo rad HAL-a:
     if(hal_mmwave_stop() != HAL_MMWAVE_OK) {
-        printf("[HAL test] stop error\n");
+        printf("[HAL test] Stop error\n");
+        return;
     } else {
-        printf("[HAL test] stop successful\n");
+        printf("[HAL test] Stop successful\n");
     }
 
-    //Deinicijaliziramo HAL
+    //Deinicijaliziramo HAL:
     if(hal_mmwave_deinit() != HAL_MMWAVE_OK) {
-        printf("[HAL test] deinit error\n");
+        printf("[HAL test] Deinit error\n");
+        return;
     } else {
-        printf("[HAL test] deinit successful\n");
+        printf("[HAL test] Deinit successful\n");
     }
 
     printf("------------HAL TEST STOP------------\n");

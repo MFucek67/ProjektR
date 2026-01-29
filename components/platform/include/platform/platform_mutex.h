@@ -3,7 +3,7 @@
  * @author Marko Fuček
  * @brief Platform API za mutex.
  * 
- * Ovaj modul pruža funkcije za upravljanje mutex mehanizama za sinkronizaciju taskova.
+ * Ovaj modul pruža funkcije za upravljanje mutex mehanizmima za sinkronizaciju taskova.
  * 
  * @version 0.1
  * @date 2026-01-20

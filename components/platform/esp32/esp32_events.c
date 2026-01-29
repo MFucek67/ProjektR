@@ -11,6 +11,9 @@
  * Slanje eventa u queue iz taska i ISR konteksta.
  * Resetiranje event queue.
  * 
+ * @note Sve timeout vrijednosti se automatski konvertiraju iz milisekundi u tickove koristeći
+ * FreeRTOS pdMS_TO_TICKS makro.
+ * 
  * @version 0.1
  * @date 2026-01-21
  * 

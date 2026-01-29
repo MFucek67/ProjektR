@@ -135,33 +135,15 @@ static void dispatcher_function(void* arg)
 {
     uart_event_t uart_ev;
     PlatformEvent_t platform_ev;
-    /*for(;;) {
-        if((uxQueueMessagesWaiting(uart_event_queue) == 0 && rx_closed) || dispatcher_stop) {
-            dispatcher_task = NULL;
-            hal_dispatcher_ended_flag = true;
-            vTaskDelete(NULL);
-        }
-
-        if(uart_event_queue == NULL || platform_event_queue == NULL) {
-            vTaskDelay(20);
-            continue;
-        }
-        if(xQueueReceive(uart_event_queue, &uart_ev, pdMS_TO_TICKS(20)) == pdTRUE) {
-            PlatformEvent_t platform_ev;
-            if(uart_event_to_platform_event(&uart_ev, &platform_ev)) {
-                xQueueSend(platform_event_queue, &platform_ev, pdMS_TO_TICKS(50));
-            }
-        }
-    }*/
    for (;;) {
-        // Ako je postavljen stop flag od ISR-a ili izvana, odmah izađi
+        // Ako je postavljen stop flag od ISR-a ili izvana, te kad isprazniš queue, izađi
         if ((platform_get_num_of_queue_elements(uart_event_queue) == 0) && (rx_closed || dispatcher_stop)) {
             break;
         }
 
         // Blokiraj task dok ne dođe event ili dok ne trebamo stati
         if (xQueueReceive(uart_event_queue, &uart_ev, pdMS_TO_TICKS(20)) == pdTRUE) {
-            printf("[DISPATCHER] ISR uart_event type=%d, size=%d\n", uart_ev.type, uart_ev.size); //KASNIJE MAKNI
+            //printf("[DISPATCHER] ISR uart_event type=%d, size=%d\n", uart_ev.type, uart_ev.size);
 
             // Pretvori UART event u platform event
             if(uart_event_to_platform_event(&uart_ev, &platform_ev)) {
@@ -174,7 +156,7 @@ static void dispatcher_function(void* arg)
         }
     }
 
-    // Čišćenje i signal da je dispatcher završio
+    // Čišćenje i signal da je dispatcher završio, te samobrisanje taska na kraju
     hal_dispatcher_ended_flag = true;
     dispatcher_task = NULL;
     vTaskDelete(NULL);
@@ -191,8 +173,8 @@ UARTStatus platform_uart_set_rx_threshold(const BoardUartId id, uint32_t bytes)
 }
 
 /**
- * @note Funkcija stvara interni platform event queue i instalira
- * ESP32 UART driver. 
+ * @note Funkcija stvara interni platform event queue i instalira ESP32 UART driver.
+ * 
  */
 UARTStatus platform_uart_init(const BoardUartId id, const platform_uart_config_t* uart_config)
 {   
@@ -221,7 +203,7 @@ UARTStatus platform_uart_init(const BoardUartId id, const platform_uart_config_t
     }
 
     if(uart_driver_install(uart_numbers.uart_num, uart_config->rx_buff_size * 2, uart_config->tx_buff_size * 2,
-            20, &uart_event_queue, 0) != ESP_OK) {
+            40, &uart_event_queue, 0) != ESP_OK) {
         platform_uart_deinit(id);
         return UART_ERROR;
     }
@@ -278,7 +260,7 @@ UARTStatus platform_uart_event_converter_start(const BoardUartId id)
     platform_queue_reset(uart_event_queue);
     platform_event_queue_reset(platform_event_queue);
 
-    if(xTaskCreate(dispatcher_function, "dispatcher", 10000, NULL, 4, &dispatcher_task) == pdPASS) {
+    if(xTaskCreate(dispatcher_function, "dispatcher", 12000, NULL, 4, &dispatcher_task) == pdPASS) {
         return UART_OK;
     } else {
         return UART_ERROR;
@@ -319,6 +301,11 @@ UARTStatus platform_ISR_enable(const BoardUartId id)
     return UART_OK;
 }
 
+/**
+ * @note Platform queue je stvorena u platform sloju - ownership pravilo nalaže da ju stoga
+ * platform sloj mora i isprazniti i obrisati.
+ * 
+ */
 UARTStatus platform_uart_deinit(const BoardUartId id)
 {
     if(dispatcher_task != NULL) {
@@ -331,7 +318,6 @@ UARTStatus platform_uart_deinit(const BoardUartId id)
     if(platform_event_queue != NULL) {
         platform_queue_reset(platform_event_queue);
         platform_queue_delete(platform_event_queue);
-        printf("[UART DEINIT] platform event queue obrisan\n");
         platform_event_queue = NULL;
     }
     
@@ -339,7 +325,6 @@ UARTStatus platform_uart_deinit(const BoardUartId id)
     if(uart_driver_delete(uart_numbers.uart_num) != ESP_OK) {
         return UART_ERROR;
     } else {
-        printf("[UART DEINIT] ISR driver obrisan\n");
         uart_event_queue = NULL;
         return UART_OK;
     }
