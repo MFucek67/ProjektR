@@ -172,7 +172,7 @@ AppSensorStatus app_stop_sys(void)
 
 AppSensorStatus app_deinit_sys(void)
 {
-    if(current_state != APP_SENSOR_STOPPED) {
+    if(current_state != APP_SENSOR_STOPPED && current_state != APP_SENSOR_INIT) {
         return APP_SENSOR_INVALID_STATE;
     }
 
