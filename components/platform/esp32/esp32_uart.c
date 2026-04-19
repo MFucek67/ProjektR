@@ -30,6 +30,7 @@
 #include "freertos/queue.h"
 #include "platform/platform_uart.h"
 #include "platform/platform_events.h"
+#include "my_hal/system_monitor.h"
 #include "board.h"
 #include "esp32_board.h"
 
@@ -157,6 +158,7 @@ static void dispatcher_function(void* arg)
     }
 
     // Čišćenje i signal da je dispatcher završio, te samobrisanje taska na kraju
+    system_monitor_unregister_task(dispatcher_task);
     hal_dispatcher_ended_flag = true;
     dispatcher_task = NULL;
     vTaskDelete(NULL);
@@ -261,6 +263,7 @@ UARTStatus platform_uart_event_converter_start(const BoardUartId id)
     platform_event_queue_reset(platform_event_queue);
 
     if(xTaskCreate(dispatcher_function, "dispatcher", 12000, NULL, 4, &dispatcher_task) == pdPASS) {
+        system_monitor_register_task("dispatcher", dispatcher_task);
         return UART_OK;
     } else {
         return UART_ERROR;

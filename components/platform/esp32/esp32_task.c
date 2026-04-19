@@ -48,3 +48,8 @@ uint32_t platform_get_task_priority()
 {
     return uxTaskPriorityGet(xTaskGetCurrentTaskHandle());
 }
+
+uint32_t platform_get_remaining_stack(task_handler task_handler)
+{
+    return (uxTaskGetStackHighWaterMark((TaskHandle_t)task_handler) * sizeof(StackType_t));
+}

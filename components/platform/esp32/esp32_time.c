@@ -25,5 +25,5 @@ uint32_t platform_getNumOfTicks(void)
 
 uint32_t platform_getNumOfMs(void)
 {
-    return  pdMS_TO_TICKS(xTaskGetTickCount());
+    return (xTaskGetTickCount() * portTICK_PERIOD_MS);
 }

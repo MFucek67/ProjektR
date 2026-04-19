@@ -49,13 +49,13 @@
 #define ESP32_BOARD_UART_PROTOCOL_NUM UART_NUM_2
 
 /**
- * @brief TX GPIO pin za konzolni UART.
+ * @brief TX GPIO pin za protokolni UART.
  * 
  */
 #define ESP32_BOARD_UART_PROTOCOL_TX GPIO_NUM_17
 
 /**
- * @brief RX GPIO pin za konzolni UART.
+ * @brief RX GPIO pin za protokolni UART.
  * 
  */
 #define ESP32_BOARD_UART_PROTOCOL_RX GPIO_NUM_16

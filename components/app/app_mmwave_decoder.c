@@ -42,6 +42,17 @@ static void decoded_report_reset(DecodedReport* dr)
     dr->has_bmp_info = false;
     dr->has_proximity_info = false;
     dr->has_uof_report = false;
+
+    dr->init_completed_info = false;
+    dr->presence_info = 0x00;
+    dr->motion_info = 0x00;
+    dr->bmp_info = 0;
+    dr->proximity_info = 0x00;
+    dr->uof_rep.existence_energy = 0;
+    dr->uof_rep.motion_distance = 0.0;
+    dr->uof_rep.motion_energy = 0;
+    dr->uof_rep.motion_speed = 0.0;
+    dr->uof_rep.static_distance = 0.0;
 }
 
 /**

@@ -54,3 +54,24 @@ MemoryOperationStatus platform_malloc(void** mem_location, uint32_t size);
  * @param memory Pokazivač na memoriju koju se oslobađa
  */
 void platform_free(void* memory);
+
+/**
+ * @brief Vraća broj bajtova preostalog heapa nekog sustava.
+ * 
+ * @return Veličina slobodnog heapa sustava u bajtovima
+ */
+uint32_t get_free_heap(void);
+
+/**
+ * @brief Vraća najmanju veličinu slobodnog heapa zabilježenu od startanja sustava.
+ * 
+ * @return Veličina slobodnog heapa sustava u bajtovima
+ */
+uint32_t get_min_free_heap(void);
+
+/**
+ * @brief Vraća veličinu najvećeg kontinuiranog slobodnog heap bloka.
+ * 
+ * @return Veličina slobodnog heapa sustava u bajtovima
+ */
+uint32_t get_largest_heap_block(void);

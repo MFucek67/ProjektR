@@ -405,3 +405,18 @@ AppSensorStatus app_inquiry_cm_time_for_no_person_get(void)
     data = CM_UOF_TIME_FOR_NO_PERSON_I_DATA;
     return app_send_inquiry(&data, CM_UOF_TIME_FOR_NO_PERSON_I_LEN, CM_UOF_TIME_FOR_NO_PERSON_I_CTRL, CM_UOF_TIME_FOR_NO_PERSON_I_CMD);
 }
+
+void app_log_system_snapshot(void)
+{
+    SystemSnapshot s;
+    if(!app_get_system_snapshot(&s)) {
+        printf("[SNAPSHOT] Nema registriranih taskova u ovom trenutku\n");
+    }
+
+    printf(">>>>>>> SYSTEM SNAPSHOT (%lu min, %lu sec):\n", (s.timestamp / 60), (s.timestamp % 60));
+    printf("Free heap: %lu B, min free heap: %lu B, largest free block: %lu B\n", s.free_heap, s.min_free_heap, s.largest_free_block);
+    for(int i = 0; i < s.task_num; i++) {
+        printf("[%s] stack left: %lu B ", s.tasks[i].name, s.tasks[i].remaining_stack);
+    }
+    printf("\n");
+}

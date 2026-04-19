@@ -82,3 +82,11 @@ void platform_set_task_priority(task_handler task_handler, uint32_t priority);
  * @return Broj pozivajućeg taska
  */
 uint32_t platform_get_task_priority();
+
+/**
+ * @brief Vraća veličinu slobodnog stacka nekog taska u bajtovima.
+ * 
+ * @param task_handler Pokazivač na task
+ * @return Veličina preostalog stacka nekog taska u bajtovima
+ */
+uint32_t platform_get_remaining_stack(task_handler task_handler);

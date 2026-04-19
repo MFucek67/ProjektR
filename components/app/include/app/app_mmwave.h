@@ -381,3 +381,9 @@ AppSensorStatus app_inquiry_cm_time_for_no_person_set(uint32_t time_in_ms);
  * @return Status operacije 
  */
 AppSensorStatus app_inquiry_cm_time_for_no_person_get(void);
+
+/**
+ * @brief Ispisuje snapshot sustava sa svim podatcima o iskorištenju rečunalnih resursa u nekom momentu rada na serial monitor.
+ * 
+ */
+void app_log_system_snapshot(void);

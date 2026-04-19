@@ -15,6 +15,7 @@
 
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
+#include "esp_heap_caps.h"
 #include "platform/platform_memory.h"
 
 MemoryOperationStatus platform_malloc(void** mem_location, uint32_t size)
@@ -35,4 +36,19 @@ MemoryOperationStatus platform_malloc(void** mem_location, uint32_t size)
 void platform_free(void* memory)
 {
     free(memory);
+}
+
+uint32_t get_free_heap(void)
+{
+    return esp_get_free_heap_size();
+}
+
+uint32_t get_min_free_heap(void)
+{
+    return esp_get_minimum_free_heap_size();
+}
+
+uint32_t get_largest_heap_block(void)
+{
+    return heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
 }

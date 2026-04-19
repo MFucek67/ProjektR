@@ -29,6 +29,36 @@
 #include "app/app_types.h"
 
 /**
+ * @brief Definira broj taskova koji se mogu pohraniti u system monitor.
+ * 
+ */
+#define APP_MAX_TASKS 10
+
+/**
+ * @struct TaskStats
+ * @brief Struktura koja predstavlja podatke o iskorištenim računalnim resursima određenog taska.
+ * 
+ */
+typedef struct {
+    const char* name; /**< Naziv taska*/
+    uint32_t remaining_stack; /**< Količina slobodnog stacka u bajtovima za taj task*/
+} TaskStats;
+
+/**
+ * @struct SystemSnapshot
+ * @brief Struktura koja predstavlja snapshot sustava sa svim podatcima o iskorištenju rečunalnih resursa u nekom momentu rada.
+ * 
+ */
+typedef struct {
+    uint32_t free_heap; /**< Količina slobodne heap memorije u bajtovima */
+    uint32_t min_free_heap; /**< Najmanja količina slobodne heap memorije od početka rada sustava u bajtovima */
+    uint32_t largest_free_block; /**< Najveći slobodni kontinuirani blok heap memorije u bajtovima */
+    uint32_t task_num; /**< Broj taskova u sustavu */
+    TaskStats tasks[APP_MAX_TASKS]; /**< Polje s podatcima o iskorištenim računalnim resursima svih taskova */
+    uint32_t timestamp; /**< Broj sekundi nakon pokretanja */
+} SystemSnapshot;
+
+/**
  * @brief Pokreće sustav.
  * 
  * Funkcija pokreće HAL i stvara task koji upravlja decoderom. Postavlja interno stanje
@@ -165,3 +195,14 @@ void onReport(DecodedReport report);
  * @return AppSensorStatus 
  */
 AppSensorStatus app_send_inquiry(const uint8_t* data, size_t data_len, const uint8_t ctrl_w, const uint8_t cmd_w);
+
+/**
+ * @brief Daje snapshot sustava.
+ * 
+ * Poziva HAL-ov system monitor i provjerava memoriju na platform razini, te vraća podatke o heap
+ * memoriji i stack memoriji svih taskova u sustavu.
+ * 
+ * @param snapshot Pokazivač na strukturu koja predstavlja snapshot sustava sa svim podatcima o iskorištenju rečunalnih resursa u nekom momentu rada
+ * @return Uspješnost dohvaćanja podataka
+ */
+bool app_get_system_snapshot(SystemSnapshot* snapshot);

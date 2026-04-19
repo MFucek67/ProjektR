@@ -34,6 +34,7 @@
 #include "platform/platform_task.h"
 #include "platform/platform_mutex.h"
 #include "platform/platform_queue.h"
+#include "my_hal/system_monitor.h"
 
 /**
  * @brief Maksimalna količina memorije koja se smije alocirati odjednom u mmWave core sloju.
@@ -113,6 +114,7 @@ static uint8_t* hal_malloc(size_t byte_size)
         return NULL;
     }
     if((currently_allocated_mem + byte_size) > MAX_TOTAL_ALLOC) {
+        platform_unlock_mutex(mutex);
         return NULL;
     }
     void* memory = NULL;
@@ -201,6 +203,7 @@ static void hal_receive_task(void* arg)
         }
         if(hal_dispatcher_ended_flag && (platform_get_num_of_queue_elements(event_queue) == 0)) {
             printf("[HAL RX] zavrsio s radom (flag1 = true)\n");
+            system_monitor_unregister_task(rx_task);
             flag1 = true;
             rx_task = NULL;
             platform_delete_task(NULL); //task postavlja flag1 (da je završio) i briše sam sebe
@@ -237,6 +240,7 @@ static void hal_send_task(void* arg)
         }
         if(hal_dispatcher_ended_flag && (platform_get_num_of_queue_elements(tx_queue) == 0)) {
             printf("[HAL TX TASK] zavrsio s radom (flag2 = true)\n");
+            system_monitor_unregister_task(tx_task);
             flag2 = true;
             tx_task = NULL;
             platform_delete_task(NULL);
@@ -326,9 +330,11 @@ HalMmwaveStatus hal_mmwave_start(void)
     //Pokretanje taska za prepoznavanje eventova, slanje na TX i primanje reportova:
     TaskConfig_t rx1 = {hal_receive_task, "rx_task", 12000, NULL, 5};
     rx_task = platform_create_task(&rx1);
+    system_monitor_register_task("rx", rx_task);
     //Pokretanje taska za slanje frame-ova u TX:
     TaskConfig_t tx1 = {hal_send_task, "tx_task", 12000, NULL, 5};
     tx_task = platform_create_task(&tx1);
+    system_monitor_register_task("tx", tx_task);
 
     current_state = HAL_MMWAVE_RUNNING;
     return HAL_MMWAVE_OK;

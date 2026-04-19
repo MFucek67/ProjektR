@@ -19,3 +19,5 @@
 #include "platform_uart.h"
 #include "platform_task.h"
 #include "platform_events.h"
+#include "wifi_client.h"
+#include "websocket.h"

@@ -19,12 +19,13 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include "app/app_mmwave_constants.h"
 
 /**
  * @brief Veličina queue-a za evente aplikacijskog sloja.
  * 
  */
-#define APP_EVENT_QUEUE_LEN 40
+#define APP_EVENT_QUEUE_LEN 200
 
 /**
  * @brief Maksimalna dopuštena duljina response payloada (u bajtovima).
@@ -57,6 +58,19 @@ typedef enum {
     APP_SENSOR_RUNNING, /**< Sustav radi */
     APP_SENSOR_STOPPED /**< Sustav je stao s radom */
 } AppSensorState;
+
+typedef enum {
+    APP_NETWORK_UNINIT,
+    APP_NETWORK_INIT,
+    APP_NETWORK_RUNNING,
+    APP_NETWORK_STOPPED
+} AppNetworkState;
+
+typedef enum {
+    APP_NETWORK_OK,
+    APP_NETWORK_ERROR,
+    APP_NETWORK_INVALID_STATE
+} AppNetworkStatus;
 
 /**
  * @enum SensorOperationMode

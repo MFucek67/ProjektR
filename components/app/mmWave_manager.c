@@ -25,11 +25,11 @@
 #include "platform/platform_memory.h"
 #include "my_hal/hal_mmwave.h"
 #include "app/app_mmwave_hal_config.h"
+#include "my_hal/system_monitor.h"
 
 static AppSensorState current_state = APP_SENSOR_UNINIT;
 static PlatformQueueHandle app_report_queue; //event queue za Report
 static PlatformQueueHandle app_response_queue; //event queue za Response
-static AppInquiryType pending_inquiry = NO_TYPE; //trenutno poslani inquiry
 static SensorOperationMode current_mode = SENSOR_MODE_STANDARD; //mode senzora
 static task_handler decoder_task_handler;
 static MMwaveReportCallback higher_app_report_callback;
@@ -58,6 +58,7 @@ static void decoder_task(void* arg)
     for(;;) {
         if(hal_mmwave_get_frame_from_queue(&buffer, 20) != HAL_MMWAVE_OK) {
             if(end_flag) {
+                system_monitor_unregister_task(decoder_task_handler);
                 task_ended = true;
                 decoder_task_handler = NULL;
                 platform_delete_task(NULL);
@@ -66,6 +67,7 @@ static void decoder_task(void* arg)
             continue;
         }
         if(buffer.data == NULL || buffer.len == 0) {
+            hal_mmwave_release_frame_memory(&buffer);
             continue;
         }
 
@@ -93,15 +95,13 @@ AppSensorStatus app_init_sys(void)
         return APP_SENSOR_INVALID_STATE;
     }
 
-    hal_mmwave_config* hal_conf = app_mmwave_get_hal_config();
-    mmWave_core_interface* core_call = app_mmwave_get_core_interface();
+    const hal_mmwave_config* hal_conf = app_mmwave_get_hal_config();
+    const mmWave_core_interface* core_call = app_mmwave_get_core_interface();
     if(!hal_conf || !core_call) {
-        printf("[APP INIT] ERROR: NULL HAL config or core interface\n"); //KASNIJE MAKNUTI
         return APP_SENSOR_ERROR;
     }
 
     if(!core_call->mmwave_parse_data || !core_call->mmwave_build_frame) {
-        printf("[app_init] ERROR: core interface incomplete\n"); //KASNIJE MAKNUTI
         return APP_SENSOR_ERROR;
     }
     
@@ -140,6 +140,7 @@ AppSensorStatus app_start_sys(void)
         printf("[app_start] ERROR: decoder task not created\n");
         return APP_SENSOR_ERROR;
     }
+    system_monitor_register_task("decoder", decoder_task_handler);
 
     current_state = APP_SENSOR_RUNNING;
     return APP_SENSOR_OK;
@@ -214,20 +215,19 @@ void mmwave_register_event_callback(MMwaveResponseCallback res_cb, MMwaveReportC
 bool app_get_response(DecodedResponse* out_response, uint32_t timeout_ms)
 {
     DecodedResponse* buff;
-    if(platform_queue_get(app_response_queue, &buff, timeout_ms) != QUEUE_OK) {
+    if(platform_queue_get(app_response_queue, (QueueElement_t*)&buff, timeout_ms) != QUEUE_OK) {
         return false;
     }
 
     *out_response = *buff;
     platform_free(buff); //oslobađamo dinamički alociran pokazivač na DecodedResponse
-
     return true;
 }
 
 bool app_get_report(DecodedReport* out_report, uint32_t timeout_ms)
 {
     DecodedReport* buff;
-    if(platform_queue_get(app_report_queue, &buff, timeout_ms) != QUEUE_OK) {
+    if(platform_queue_get(app_report_queue, (QueueElement_t*)&buff, timeout_ms) != QUEUE_OK) {
         return false;
     }
 
@@ -245,12 +245,12 @@ void onResponse(DecodedResponse response)
 
     DecodedResponse* buff;
     if (platform_malloc((void**)&buff, sizeof(DecodedResponse)) != MEM_OK) {
-        printf("[onReport] ERROR: malloc failed\n");
+        printf("[onResponse] ERROR: malloc failed\n");
         return;
     }
     *buff = response;
 
-    if(platform_queue_send(app_response_queue, &buff, 10) != QUEUE_OK) {
+    if(platform_queue_send(app_response_queue, (QueueElement_t*)&buff, 10) != QUEUE_OK) {
         printf("[onResponse] ERROR: queue_send failed\n");
         platform_free(buff);
         return;
@@ -270,7 +270,7 @@ void onReport(DecodedReport report)
 
     *buff = report;
 
-    if(platform_queue_send(app_report_queue, &buff, 10) != QUEUE_OK) {
+    if(platform_queue_send(app_report_queue, (QueueElement_t*)&buff, 10) != QUEUE_OK) {
         printf("[onReport] ERROR: queue_send failed\n");
         platform_free(buff);
         return;
@@ -290,4 +290,29 @@ AppSensorStatus app_send_inquiry(const uint8_t* data, size_t data_len, const uin
         return APP_SENSOR_ERROR;
     }
     return APP_SENSOR_OK;
+}
+
+bool app_get_system_snapshot(SystemSnapshot* snapshot)
+{
+    if(!snapshot) {
+        return false;
+    }
+    if(system_monitor_task_count() == 0) {
+        return false;
+    }
+
+    snapshot->free_heap = get_free_heap();
+    snapshot->min_free_heap = get_min_free_heap();
+    snapshot->largest_free_block = get_largest_heap_block();
+    int count = system_monitor_task_count();
+    snapshot->task_num = count;
+    
+    monitor_task_stats_t* tasks = get_all_tasks_stats();
+    for(int i = 0; i < count; i++) {
+        snapshot->tasks[i].name = tasks[i].name;
+        snapshot->tasks[i].remaining_stack = tasks[i].remaining_stack;
+    }
+
+    snapshot->timestamp = (platform_getNumOfMs() / 1000);
+    return true;
 }

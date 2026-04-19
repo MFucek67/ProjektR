@@ -4,9 +4,9 @@
  * @brief Definicije tipova i konstanti za mmWave HAL sloj.
  * 
  * Ovaj header definira osnovne tipove podataka, enumeracija i konfiguracijske strukture
- * koje HAL sloj koristi.
+ * koje mmwave HAL sloj koristi.
  * 
- * Svrha ovog modula je objediniti sve tipove koji se koriste na HAL sloju te tako olakšati
+ * Svrha ovog modula je objediniti sve tipove koji se koriste na HAL mmwave sloju te tako olakšati
  * portabilnost i održavanje koda i povećatai apstrakciju istog.
  * 
  * @version 0.1
