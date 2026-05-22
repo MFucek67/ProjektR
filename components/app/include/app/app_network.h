@@ -22,12 +22,19 @@
 #include "app/app_types.h"
 #include "my_hal/hal_network_interface.h"
 
+#define RX_QUEUE_LEN 20
+
 /**
  * @typedef app_network_config
  * @brief Definira tip konfiguracije mreže na aplikacijskom sloju.
  * 
  */
 typedef hal_network_config app_network_config;
+
+typedef struct {
+    uint8_t* data;
+    size_t len;
+} NetworkRxPacket;
 
 /**
  * @brief Mapira konfiguraciju klijenta koja se kasnije koristi za spajanje na mrežu i inicijalizira network
@@ -66,3 +73,5 @@ AppNetworkStatus network_uninit(void);
  * @param responses Pokazivač na broj poslanih responseova
  */
 void sent_via_network_statistics(uint32_t* reports, uint32_t* responses);
+
+bool network_poll_rx(uint8_t* out_buf, size_t buf_len, size_t* out_len, uint32_t timeout_in_ms);

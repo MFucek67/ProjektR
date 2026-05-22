@@ -27,11 +27,13 @@
 #include "tests/test_app.h"
 #include "tests/test_mmwave_core.h"
 #include "tests/test_stress.h"
+#include "tests/dataset_collector.h"
 
 void app_main(void)
 {
     //hal_mmwave_run_test();
     //mmwave_core_run_test();
     //app_mmwave_run_test();
-    stress_run_test();
+    //stress_run_test();
+    run_dataset_collector();
 }

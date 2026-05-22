@@ -20,4 +20,5 @@
 #include "platform_task.h"
 #include "platform_events.h"
 #include "wifi_client.h"
+#include "platform_mutex.h"
 #include "websocket.h"

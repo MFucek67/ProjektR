@@ -37,7 +37,9 @@ static void hal_on_wifi_event(WiFiState st)
     case WIFI_STATE_CONNECTING:
         break;
     case WIFI_STATE_DISCONNECTED:
-        hal_ws_stop(); //izgubili smo konekciju - zaustavljamo WS prijenos
+        if(get_ws_client_state() == WS_STARTED) {
+            hal_ws_stop(); //izgubili smo konekciju - zaustavljamo WS prijenos
+        }
         break;
     case WIFI_STATE_CONFIGURED:
         current_hal_wifi_state = HAL_WIFI_STOPPED;

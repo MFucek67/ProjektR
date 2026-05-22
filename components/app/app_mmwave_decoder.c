@@ -218,127 +218,129 @@ void app_mmwave_decoder_process_frame(uint8_t* data, size_t data_len)
             break;
         }
     } else if(ctrl_w == UOF_REPORT_CTRL) {
-        report.has_uof_report = true;
-        report.uof_rep.existence_energy = data[2];
-        report.uof_rep.motion_energy = data[4];
-        switch (data[3])
-        {
-        case 0x01:
-            report.uof_rep.static_distance = 0.5;
-            break;
-        case 0x02:
-            report.uof_rep.static_distance = 1;
-            break;
-        case 0x03:
-            report.uof_rep.static_distance = 1.5;
-            break;
-        case 0x04:
-            report.uof_rep.static_distance = 2;
-            break;
-        case 0x05:
-            report.uof_rep.static_distance = 2.5;
-            break;
-        case 0x06:
-            report.uof_rep.static_distance = 3;
-            break;
-        default:
-            break;
+        if(payload_len == UOF_REPORT_LEN) {
+            report.has_uof_report = true;
+            report.uof_rep.existence_energy = data[2];
+            report.uof_rep.motion_energy = data[4];
+            switch (data[3])
+            {
+            case 0x01:
+                report.uof_rep.static_distance = 0.5;
+                break;
+            case 0x02:
+                report.uof_rep.static_distance = 1;
+                break;
+            case 0x03:
+                report.uof_rep.static_distance = 1.5;
+                break;
+            case 0x04:
+                report.uof_rep.static_distance = 2;
+                break;
+            case 0x05:
+                report.uof_rep.static_distance = 2.5;
+                break;
+            case 0x06:
+                report.uof_rep.static_distance = 3;
+                break;
+            default:
+                break;
+            }
+            switch (data[5])
+            {
+            case 0x01:
+                report.uof_rep.motion_distance = 0.5;
+                break;
+            case 0x02:
+                report.uof_rep.motion_distance = 1;
+                break;
+            case 0x03:
+                report.uof_rep.motion_distance = 1.5;
+                break;
+            case 0x04:
+                report.uof_rep.motion_distance = 2;
+                break;
+            case 0x05:
+                report.uof_rep.motion_distance = 2.5;
+                break;
+            case 0x06:
+                report.uof_rep.motion_distance = 3;
+                break;
+            case 0x07:
+                report.uof_rep.motion_distance = 3.5;
+                break;
+            case 0x08:
+                report.uof_rep.motion_distance = 4;
+                break;
+            default:
+                break;
+            }
+            switch (data[6])
+            {
+            case 0x01:
+                report.uof_rep.motion_speed = -4.5;
+                break;
+            case 0x02:
+                report.uof_rep.motion_speed = -4;
+                break;
+            case 0x03:
+                report.uof_rep.motion_speed = -3.5;
+                break;
+            case 0x04:
+                report.uof_rep.motion_speed = -3;
+                break;
+            case 0x05:
+                report.uof_rep.motion_speed = -2.5;
+                break;
+            case 0x06:
+                report.uof_rep.motion_speed = -2;
+                break;
+            case 0x07:
+                report.uof_rep.motion_speed = -1.5;
+                break;
+            case 0x08:
+                report.uof_rep.motion_speed = -1;
+                break;
+            case 0x09:
+                report.uof_rep.motion_speed = -0.5;
+                break;
+            case 0x0a:
+                report.uof_rep.motion_speed = 0;
+                break;
+            case 0x0b:
+                report.uof_rep.motion_speed = 0.5;
+                break;
+            case 0x0c:
+                report.uof_rep.motion_speed = 1;
+                break;
+            case 0x0d:
+                report.uof_rep.motion_speed = 1.5;
+                break;
+            case 0x0e:
+                report.uof_rep.motion_speed = 2;
+                break;
+            case 0x0f:
+                report.uof_rep.motion_speed = 2.5;
+                break;
+            case 0x10:
+                report.uof_rep.motion_speed = 3;
+                break;
+            case 0x11:
+                report.uof_rep.motion_speed = 3.5;
+                break;
+            case 0x12:
+                report.uof_rep.motion_speed = 4;
+                break;
+            case 0x13:
+                report.uof_rep.motion_speed = 4.5;
+                break;
+            case 0x14:
+                report.uof_rep.motion_speed = 5;
+                break;
+            default:
+                break;
+            }
+            context->sendReportCallback(report);
         }
-        switch (data[5])
-        {
-        case 0x01:
-            report.uof_rep.motion_distance = 0.5;
-            break;
-        case 0x02:
-            report.uof_rep.motion_distance = 1;
-            break;
-        case 0x03:
-            report.uof_rep.motion_distance = 1.5;
-            break;
-        case 0x04:
-            report.uof_rep.motion_distance = 2;
-            break;
-        case 0x05:
-            report.uof_rep.motion_distance = 2.5;
-            break;
-        case 0x06:
-            report.uof_rep.motion_distance = 3;
-            break;
-        case 0x07:
-            report.uof_rep.motion_distance = 3.5;
-            break;
-        case 0x08:
-            report.uof_rep.motion_distance = 4;
-            break;
-        default:
-            break;
-        }
-        switch (data[6])
-        {
-        case 0x01:
-            report.uof_rep.motion_speed = -4.5;
-            break;
-        case 0x02:
-            report.uof_rep.motion_speed = -4;
-            break;
-        case 0x03:
-            report.uof_rep.motion_speed = -3.5;
-            break;
-        case 0x04:
-            report.uof_rep.motion_speed = -3;
-            break;
-        case 0x05:
-            report.uof_rep.motion_speed = -2.5;
-            break;
-        case 0x06:
-            report.uof_rep.motion_speed = -2;
-            break;
-        case 0x07:
-            report.uof_rep.motion_speed = -1.5;
-            break;
-        case 0x08:
-            report.uof_rep.motion_speed = -1;
-            break;
-        case 0x09:
-            report.uof_rep.motion_speed = -0.5;
-            break;
-        case 0x0a:
-            report.uof_rep.motion_speed = 0;
-            break;
-        case 0x0b:
-            report.uof_rep.motion_speed = 0.5;
-            break;
-        case 0x0c:
-            report.uof_rep.motion_speed = 1;
-            break;
-        case 0x0d:
-            report.uof_rep.motion_speed = 1.5;
-            break;
-        case 0x0e:
-            report.uof_rep.motion_speed = 2;
-            break;
-        case 0x0f:
-            report.uof_rep.motion_speed = 2.5;
-            break;
-        case 0x10:
-            report.uof_rep.motion_speed = 3;
-            break;
-        case 0x11:
-            report.uof_rep.motion_speed = 3.5;
-            break;
-        case 0x12:
-            report.uof_rep.motion_speed = 4;
-            break;
-        case 0x13:
-            report.uof_rep.motion_speed = 4.5;
-            break;
-        case 0x14:
-            report.uof_rep.motion_speed = 5;
-            break;
-        default:
-            break;
-        }
-        context->sendReportCallback(report);
     }
 
     //Responses

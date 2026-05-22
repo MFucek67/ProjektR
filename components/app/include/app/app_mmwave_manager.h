@@ -206,3 +206,10 @@ AppSensorStatus app_send_inquiry(const uint8_t* data, size_t data_len, const uin
  * @return Uspješnost dohvaćanja podataka
  */
 bool app_get_system_snapshot(SystemSnapshot* snapshot);
+
+/**
+ * @brief Daje stanje u kojem se nalazi mmwave senzor.
+ * 
+ * @return Stanje u kojem se senzor nalazi
+ */
+AppSensorState get_mmwave_state();

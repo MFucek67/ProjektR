@@ -10,8 +10,6 @@
 #include "app/app_network.h"
 #include "platform/platform.h"
 
-#define EVENT_POLL_TIMEOUT_IN_MS 20
-
 static task_handler st_task;
 static volatile uint32_t report_c;
 static volatile uint32_t response_c;
@@ -24,6 +22,7 @@ static void stress_task(void* arg)
         if(stop_flag) {
             task_ended = true;
             platform_delete_task(NULL);
+            break;
         }
 
         app_log_system_snapshot();
@@ -33,17 +32,6 @@ static void stress_task(void* arg)
         platform_delay_task(SYSTEM_STATISTICS_LOG_INTERVAL);
     }
 }
-
-/*static void analise_event_lite(void) {
-    DecodedReport sensor_report;
-    DecodedResponse sensor_response;
-    if(mmwave_poll_report(&sensor_report, EVENT_POLL_TIMEOUT_IN_MS)) {
-        report_c++;
-    }
-    if(mmwave_poll_response(&sensor_response, EVENT_POLL_TIMEOUT_IN_MS)) {
-        response_c++;
-    }
-}*/
 
 void stress_run_test(void)
 {

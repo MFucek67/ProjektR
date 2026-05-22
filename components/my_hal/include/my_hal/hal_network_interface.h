@@ -63,13 +63,15 @@ typedef struct {
  */
 typedef void (*on_network_event)(NetworkEvent nw_event);
 
+typedef void (*on_network_data)(const uint8_t* data, size_t len);
+
 /**
  * @brief Poziva se kako bi HAL dobio pokazivač na application funkciju koju poziva kod
  * network eventova.
  * 
  * @param app_cb Pokazivač na application funkciju za obradu network eventova
  */
-void hal_bind_network_callback(on_network_event app_cb);
+void hal_bind_network_callback(on_network_event app_cb, on_network_data app_nw_cb);
 
 /**
  * @brief Šalje podatke na platform sloj koji ih šalje preko mreže.

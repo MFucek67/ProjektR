@@ -376,7 +376,7 @@ AppSensorStatus app_inquiry_cm_motion_to_still_time_get(void);
 AppSensorStatus app_inquiry_cm_time_for_no_person_set(uint32_t time_in_ms);
 
 /**
- * @brief šalje upit (inquiry) za dohvat time for no person-a.
+ * @brief Šalje upit (inquiry) za dohvat time for no person-a.
  * 
  * @return Status operacije 
  */
@@ -387,3 +387,10 @@ AppSensorStatus app_inquiry_cm_time_for_no_person_get(void);
  * 
  */
 void app_log_system_snapshot(void);
+
+/**
+ * @brief Vraća stanje u kojem se nalazi mmwave sustav.
+ * 
+ * @return Stanje mmwave sustava
+ */
+AppSensorState app_get_mmwave_state();

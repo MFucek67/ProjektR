@@ -26,6 +26,7 @@
 
 static HalWebSocketState current_hal_ws_state = HAL_WS_UNINIT;
 static on_network_event network_cb = NULL;
+static on_network_data network_data_cb = NULL;
 
 /**
  * @brief Handla podatke koje platform Web Socket primi preko Web Socketa.
@@ -35,9 +36,14 @@ static on_network_event network_cb = NULL;
  * @param data Pokazivač na primljene podatke
  * @param len Duljina primljenih podataka u bajtovima
  */
-static void hal_on_ws_data(const char* data, size_t len)
+static void hal_on_ws_data(const uint8_t* data, size_t len)
 {
- //TO-DO za dvosmjernu komunikaciju!!
+    if((len > 0) && data) {
+        if(network_data_cb) {
+            network_data_cb(data, len);
+        }
+    }
+    platform_free(data); //free memorije rezervirane na platform sloju
 }
 
 /**
@@ -48,7 +54,7 @@ static void hal_on_ws_data(const char* data, size_t len)
  */
 static void hal_on_ws_error(void)
 {
- //TO-DO za dvosmjernu!
+ //TO-DO ako bude potrebe
 }
 
 /**
@@ -127,9 +133,12 @@ HalWebSocketStatus hal_ws_deinit(void)
     return HAL_WS_OK;
 }
 
-void hal_bind_network_callback(on_network_event app_cb)
+void hal_bind_network_callback(on_network_event app_cb, on_network_data app_nw_cb)
 {
     if(app_cb) {
         network_cb = app_cb;
+    }
+    if(app_nw_cb) {
+        network_data_cb = app_nw_cb;
     }
 }

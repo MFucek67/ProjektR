@@ -17,10 +17,10 @@
 /**
  * @brief Pokazivač na funkciju koja se zove kada Web Socket primi podatke.
  * 
- * @param data Pokazivač na array charactera koji predstavljaju primljene podatke
+ * @param data Pokazivač na array bajtova koji predstavljaju primljene podatke
  * @param len Duljina arraya primljenih podataka
  */
-typedef void (*on_ws_data)(const char* data, size_t len);
+typedef void (*on_ws_data)(const uint8_t* data, size_t len);
 
 /**
  * @brief Pokazivač na funkciju koja se zove kada Web Socket doživi error.

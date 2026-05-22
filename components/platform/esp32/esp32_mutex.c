@@ -24,7 +24,13 @@ MutexHandle_t platform_create_mutex(void)
 }
 MutexOperationStatus platform_lock_mutex(MutexHandle_t mutex, uint32_t timeout)
 {
-    if(xSemaphoreTake(mutex, pdMS_TO_TICKS(timeout)) == pdTRUE) {
+    TickType_t time_to_wait;
+    if(timeout == MUTEX_WAIT_FOREVER) {
+        time_to_wait = portMAX_DELAY;
+    } else {
+        time_to_wait = pdMS_TO_TICKS(timeout);
+    }
+    if(xSemaphoreTake(mutex, time_to_wait) == pdTRUE) {
         return MUTEX_OP_SUCCESSFUL;
     } else {
         return MUTEX_OP_UNSUCCESSFUL;

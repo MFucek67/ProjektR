@@ -87,6 +87,9 @@ HalNetworkStatus hal_network_start(void)
 
 HalNetworkStatus hal_network_stop(void)
 {
+    hal_ws_stop();
+    platform_delay_task(200);
+    
     HalWifiStatus res = hal_wifi_stop();
     switch (res)
     {

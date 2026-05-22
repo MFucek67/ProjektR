@@ -22,6 +22,7 @@
 #include "stdint.h"
 #include "freertos/FreeRTOS.h"
 #include "platform/websocket.h"
+#include "platform/platform_memory.h"
 #include "esp_websocket_client.h"
 #include "my_hal/hal_ws_interface.h"
 
@@ -53,7 +54,7 @@ static void ws_handler(void* arg, esp_event_base_t base, int32_t event_id, void*
         }
         break;
     case WEBSOCKET_EVENT_ERROR:
-        //TO-DO kod dvosmjerne komunikacije!!!!
+        //TO-DO ako bude potrebe
         break;
     case WEBSOCKET_EVENT_DISCONNECTED:
         current_state = WS_CLOSED;
@@ -63,8 +64,17 @@ static void ws_handler(void* arg, esp_event_base_t base, int32_t event_id, void*
         break;
     case WEBSOCKET_EVENT_DATA:
         esp_websocket_event_data_t* data_ = (esp_websocket_event_data_t*) event_data;
-        //napraviti kopiju i poslati u HAL (dinamički - HAL free-a???)
-        //TO-DO kod dvosmjerne komunikacije!!!!
+        if((data_->data_len > 0) && (data_->data_ptr != NULL)) {
+            uint8_t* copy = NULL;
+            MemoryOperationStatus status = platform_malloc(&copy, data_->data_len);
+            if(status == MEM_OK) {
+                memcpy(copy, data_->data_ptr, data_->data_len);
+                if(hal_on_data_cb) {
+                    hal_on_data_cb(copy, data_->data_len);
+                    //HAL RADI FREE NAKON SLANJA!
+                }
+            }
+        }
         break;
     case WEBSOCKET_EVENT_CLOSED:
         current_state = WS_CLOSED;
@@ -85,7 +95,9 @@ webSocketStatus ws_client_init(ws_config *config)
 
     esp_websocket_client_config_t ws_config = {
         .uri = config->uri,
-        .port = config->port
+        .port = config->port,
+        .ping_interval_sec = 10, //ping svakih 10s
+        .pingpong_timeout_sec = 30 //dopuštamo 3 pinga prije nego proglasimo konekciju "mrtvom"
     };
     websocket_h = esp_websocket_client_init(&ws_config);
 

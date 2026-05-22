@@ -17,6 +17,8 @@
 #include "stdint.h"
 #include "stdbool.h"
 
+#define MUTEX_WAIT_FOREVER UINT32_MAX
+
 /**
  * @typedef MutexHandle_t
  * @brief Pokazivač (handle) na mutex objekt.

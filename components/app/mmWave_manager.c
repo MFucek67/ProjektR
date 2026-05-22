@@ -20,9 +20,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "app/app_mmwave_manager.h"
-#include "platform/platform_queue.h"
-#include "platform/platform_task.h"
-#include "platform/platform_memory.h"
+#include "platform/platform.h"
 #include "my_hal/hal_mmwave.h"
 #include "app/app_mmwave_hal_config.h"
 #include "my_hal/system_monitor.h"
@@ -36,6 +34,8 @@ static MMwaveReportCallback higher_app_report_callback;
 static MMwaveResponseCallback higher_app_response_callback;
 static volatile bool end_flag = false;
 static volatile bool task_ended = false;
+static MutexHandle_t report_queue_mutex;
+static MutexHandle_t response_queue_mutex;
 
 static AppDecoderContext decoder_ctx = {
         .sendReportCallback = onReport,
@@ -118,6 +118,13 @@ AppSensorStatus app_init_sys(void)
         return APP_SENSOR_ERROR;
     }
 
+    report_queue_mutex = platform_create_mutex();
+    response_queue_mutex = platform_create_mutex();
+    if(!report_queue_mutex || !response_queue_mutex) {
+        printf("[APP INIT] Mutex nije uspješno izrađen\n");
+        return APP_SENSOR_ERROR;
+    }
+
     end_flag = false;
     task_ended = false;
     current_state = APP_SENSOR_INIT;
@@ -160,6 +167,11 @@ AppSensorStatus app_stop_sys(void)
     while(!task_ended) {
         platform_delay_task(10);
     }
+
+    platform_delete_mutex(report_queue_mutex);
+    platform_delete_mutex(response_queue_mutex);
+    report_queue_mutex = NULL;
+    response_queue_mutex = NULL;
 
     platform_queue_delete(app_report_queue);
     app_report_queue = NULL;
@@ -215,25 +227,29 @@ void mmwave_register_event_callback(MMwaveResponseCallback res_cb, MMwaveReportC
 bool app_get_response(DecodedResponse* out_response, uint32_t timeout_ms)
 {
     DecodedResponse* buff;
-    if(platform_queue_get(app_response_queue, (QueueElement_t*)&buff, timeout_ms) != QUEUE_OK) {
-        return false;
+    bool result = false;
+    platform_lock_mutex(response_queue_mutex, UINT32_MAX);
+    if(platform_queue_get(app_response_queue, (QueueElement_t*)&buff, timeout_ms) == QUEUE_OK) {
+        *out_response = *buff;
+        platform_free(buff); //oslobađamo dinamički alociran pokazivač na DecodedResponse
+        result = true;
     }
-
-    *out_response = *buff;
-    platform_free(buff); //oslobađamo dinamički alociran pokazivač na DecodedResponse
-    return true;
+    platform_unlock_mutex(response_queue_mutex);
+    return result;
 }
 
 bool app_get_report(DecodedReport* out_report, uint32_t timeout_ms)
 {
     DecodedReport* buff;
-    if(platform_queue_get(app_report_queue, (QueueElement_t*)&buff, timeout_ms) != QUEUE_OK) {
-        return false;
+    bool result = false;
+    platform_lock_mutex(report_queue_mutex, UINT32_MAX);
+    if(platform_queue_get(app_report_queue, (QueueElement_t*)&buff, timeout_ms) == QUEUE_OK) {
+        *out_report = *buff;
+        platform_free(buff); //oslobađamo dinamički alociran pokazivač na DecodedReport
+        result = true;
     }
-
-    *out_report = *buff;
-    platform_free(buff); //oslobađamo dinamički alociran pokazivač na DecodedReport
-    return true;
+    platform_unlock_mutex(report_queue_mutex);
+    return result;
 }
 
 void onResponse(DecodedResponse response)
@@ -250,11 +266,20 @@ void onResponse(DecodedResponse response)
     }
     *buff = response;
 
-    if(platform_queue_send(app_response_queue, (QueueElement_t*)&buff, 10) != QUEUE_OK) {
-        printf("[onResponse] ERROR: queue_send failed\n");
-        platform_free(buff);
-        return;
+    platform_lock_mutex(response_queue_mutex, UINT32_MAX);
+    if(platform_queue_send(app_response_queue, (QueueElement_t*)&buff, 0) != QUEUE_OK) {
+        //Queue pun -> mičemo najstariji response
+        printf("[onResponse] WARNING: Queue full, removing oldest!\n");
+        DecodedResponse* garbage;
+        platform_queue_get(app_response_queue, (QueueElement_t*)&garbage, 0);
+        platform_free(garbage);
+        if(platform_queue_send(app_response_queue, (QueueElement_t*)&buff, 0) != QUEUE_OK) {
+            printf("[onResponse] ERROR: queue_send failed\n");
+            platform_free(buff);
+        }
     }
+    platform_unlock_mutex(response_queue_mutex);
+
     if(higher_app_response_callback) {
         higher_app_response_callback(response);
     }
@@ -270,11 +295,20 @@ void onReport(DecodedReport report)
 
     *buff = report;
 
-    if(platform_queue_send(app_report_queue, (QueueElement_t*)&buff, 10) != QUEUE_OK) {
-        printf("[onReport] ERROR: queue_send failed\n");
-        platform_free(buff);
-        return;
+    platform_lock_mutex(report_queue_mutex, UINT32_MAX);
+    if(platform_queue_send(app_report_queue, (QueueElement_t*)&buff, 0) != QUEUE_OK) {
+        //Queue je pun -> mičemo najstariji report
+        printf("[onReport] WARNING: Queue full, removing oldest!\n");
+        DecodedReport* garbage;
+        platform_queue_get(app_report_queue, (QueueElement_t*)&garbage, 0);
+        platform_free(garbage);
+        if(platform_queue_send(app_report_queue, (QueueElement_t*)&buff, 0) != QUEUE_OK) {
+            printf("[onReport] ERROR: queue_send failed\n");
+            platform_free(buff);
+        }
     }
+    platform_unlock_mutex(report_queue_mutex);
+
     if(higher_app_report_callback) {
         higher_app_report_callback(report);
     }
@@ -315,4 +349,9 @@ bool app_get_system_snapshot(SystemSnapshot* snapshot)
 
     snapshot->timestamp = (platform_getNumOfMs() / 1000);
     return true;
+}
+
+AppSensorState get_mmwave_state()
+{
+    return current_state;
 }

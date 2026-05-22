@@ -420,3 +420,8 @@ void app_log_system_snapshot(void)
     }
     printf("\n");
 }
+
+AppSensorState app_get_mmwave_state()
+{
+    return get_mmwave_state();
+}
